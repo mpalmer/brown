@@ -1,0 +1,30 @@
+# Run an agent.  Any agent.
+
+require 'envied'
+
+envied_config = (ENVied.config || ENVied::Configuration.new).tap do |cfg|
+	cfg.enable_defaults!
+	cfg.variable :BROWN_ACL_PATH
+	cfg.variable :RABBITMQ_SERVER
+	cfg.variable :BROWN_LOG_LEVEL, :string, :default => "info"
+end
+
+ENVied.require(:default, :config => envied_config)
+
+# Trick smith-using agents into loving us -- since we have a `smith.rb` and
+# we should be the only thing in $LOAD_PATH at the moment, our version will
+# be loaded and the real smith will never darken our door.
+require 'smith'
+
+load *ARGV
+
+agent_classes = ObjectSpace.each_object(Class).select do |k|
+	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
+end
+
+Brown::ACLLoader.load_all(ENVied.BROWN_ACL_PATH.split(":"))
+
+Brown.start(:server_url => ENVied.RABBITMQ_SERVER,
+            :log_level  => ENVied.BROWN_LOG_LEVEL) do
+	agent_classes.each { |k| k.new.run }
+end
