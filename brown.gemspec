@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
 	s.add_runtime_dependency "protobuf",        "~> 3.0"
 
 	s.add_development_dependency "bundler"
+	s.add_development_dependency "github-release"
 	s.add_development_dependency "git-version-bump", "~> 0.10"
 	s.add_development_dependency "rake",             "~> 10.4", ">= 10.4.2"
 end
