@@ -22,9 +22,10 @@ agent_classes = ObjectSpace.each_object(Class).select do |k|
 	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
 end
 
-Brown::ACLLoader.load_all(ENVied.BROWN_ACL_PATH.split(":"))
-
 Brown.start(:server_url => ENVied.RABBITMQ_SERVER,
             :log_level  => ENVied.BROWN_LOG_LEVEL) do
+
+	Brown::ACLLoader.load_all(ENVied.BROWN_ACL_PATH.split(":"))
+
 	agent_classes.each { |k| k.new.run }
 end

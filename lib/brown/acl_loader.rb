@@ -6,7 +6,7 @@ require 'protobuf'
 require "brown/logger"
 
 class Brown::ACLLoader
-	include Brown::Logger
+	extend Brown::Logger
 
 	def self.load_all(*dirs)
 		dirs.flatten!
