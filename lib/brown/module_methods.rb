@@ -25,6 +25,10 @@ module Brown::ModuleMethods
 	def start(opts={})
 		@log_level = opts[:log_level] || "info"
 
+		# Why these are not the defaults, I will never know
+		EM.epoll if EM.epoll?
+		EM.kqueue if EM.kqueue?
+
 		connection_settings = {
 		  :on_tcp_connection_failure          => method(:tcp_connection_failure_handler),
 		  :on_possible_authentication_failure => method(:authentication_failure_handler)
