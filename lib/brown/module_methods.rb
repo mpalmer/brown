@@ -14,12 +14,18 @@ module Brown::ModuleMethods
 	attr_reader :connection, :log_level
 
 	def compile_acls
-		@compiler = ACLCompiler.new
-		@compiler.compile
 	end
 
 	def config
-		Hash.new { |h,k| h[k] = Hash.new { |h,k| h[k] = "" } }
+		Class.new.tap do |cfg|
+			cfg.send(:define_method, :method_missing) do |*_args|
+				Class.new.tap do |group|
+					group.send(:define_method, :method_missing) do |*_args|
+						""
+					end
+				end.new
+			end
+		end.new
 	end
 
 	def running?
