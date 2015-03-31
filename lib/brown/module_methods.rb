@@ -18,6 +18,10 @@ module Brown::ModuleMethods
 		@compiler.compile
 	end
 
+	def config
+		Hash.new { |h,k| h[k] = Hash.new { |h,k| h[k] = "" } }
+	end
+
 	def running?
 		EM.reactor_running?
 	end
