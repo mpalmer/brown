@@ -16,7 +16,7 @@ ENVied.require(:default, :config => envied_config)
 # be loaded and the real smith will never darken our door.
 require 'smith'
 
-load *ARGV
+require *ARGV
 
 agent_classes = ObjectSpace.each_object(Class).select do |k|
 	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
