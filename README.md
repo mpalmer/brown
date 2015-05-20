@@ -29,7 +29,7 @@ presumably know what to do already.
 
 # Usage
 
-To make something an agent, you simply create a subclass of `Brown::Agent`. 
+To make something an agent, you simply create a subclass of `Brown::Agent`.
 You can then use a simple DSL to define "stimuli", each of which (when
 triggered) cause a new instance of the class to be instantiated and a method
 (specified by the stimulus) to be invoked in a separate thread.  You can do
@@ -37,7 +37,7 @@ arbitrary things to detect stimuli, however there are a number of
 pre-defined stimuli you can use to do standard things, like run something
 periodically, or process a message on an AMQP queue.
 
-As a very simple example, say you wanted to print `foo` every five seconds. 
+As a very simple example, say you wanted to print `foo` every five seconds.
 (Yes, you *could* do this in a loop, but humour me, would you?)  Using the
 built-in `every` stimuli, you could do it like this:
 
@@ -71,7 +71,7 @@ this directly using the generic method, `stimulate`:
         sleep 5
         worker.call
       end
-      
+
       def foo
         puts "#{self} is fooing in thread #{Thread.current}"
       end
@@ -88,6 +88,14 @@ What a `stimulate` declaration says is, quite simply:
 
 You can pass arguments to the agent method call, by giving them to
 `worker.call`.
+
+
+## Running agents on the command line
+
+The easiest way to run agents "in production" is to use the `brown` command.
+Simply pass a list of files which contain subclasses of `Brown::Agent`, and
+those classes will be run in individual threads, with automatic restarting.
+Convenient, huh?
 
 
 # Contributing

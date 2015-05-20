@@ -15,10 +15,12 @@ Gem::Specification.new do |s|
 	s.homepage = "http://theshed.hezmatt.org/brown"
 
 	s.files = `git ls-files -z`.split("\0").reject { |f| f =~ /^(G|spec|Rakefile)/ }
+	s.executables = %w{brown}
 
 	s.required_ruby_version = ">= 2.1.0"
 
 #	s.add_runtime_dependency "bunny", "~> 1.9"
+	s.add_runtime_dependency "envied", "~> 0.8"
 
 	s.add_development_dependency 'bundler'
 	s.add_development_dependency 'github-release'

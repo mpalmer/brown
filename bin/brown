@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+
+# Run an agent.  Any agent.
+
+require 'envied'
+require 'logger'
+
+envied_config = (ENVied.config || ENVied::Configuration.new).tap do |cfg|
+	cfg.enable_defaults!
+	cfg.variable :AMQP_URL, "amqp://localhost"
+	cfg.variable :BROWN_LOG_LEVEL, :string, :default => "info"
+end
+
+ENVied.require(:default, :config => envied_config)
+
+ARGV.each { |f| require f }
+
+agent_classes = ObjectSpace.each_object(Class).select do |k|
+	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
+end
+
+Brown::Agent.logger = Logger.new($stdout)
+Brown::Agent.logger.level = Logger.const_get(ENVied.BROWN_LOG_LEVEL.upcase.to_sym)
+Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$} [#{s[0]}] #{msg}\n" }
+
+agents = ThreadGroup.new
+
+def stop_agents(agents)
+	agents.list.each do |th|
+		th[:agent_class] && th[:agent_class].stop
+	end
+end
+
+Signal.trap("INT")  { stop_agents(agents) }
+Signal.trap("TERM") { stop_agents(agents) }
+Signal.trap("HUP", "IGNORE")
+
+agent_classes.each do |klass|
+	th = Thread.new(klass) do |klass|
+		klass.run
+		Thread[:agent_class] = klass
+	end
+
+	agents.add(th)
+end
+
+agents.enclose
+
+loop do
+	sleep 1
+
+	agents.list.each do |th|
+		if th.dead?
+			begin
+				th.join
+			rescue Exception => ex
+				Brown::Agent.logger.fatal { "Agent #{th[:agent_class]} crashed: #{ex.message} (#{ex.class})" }
+				Brown::Agent.logger.info { ex.backtrace.map { |l| "  #{l}" }.join("\n") }
+			else
+				Brown::Agent.logger.warn "Agent #{th[:agent_class]} terminated itself"
+			end
+			klass = th[:agent_class]
+			th[:agent_class] = nil
+
+			Brown::Agent.logger.info { "Re-starting #{klass} agent" }
+
+			th = Thread.new(klass) do |klass|
+				klass.run
+				Thread[:agent_class] = klass
+			end
+
+			agents.add(th)
+		end
+	end
+end
