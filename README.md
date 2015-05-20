@@ -1,20 +1,27 @@
-This is a template git repo suitable for building a Womble-compliant gem.
-If you're reading this text in a released gem, or a git repo that isn't
-`gemplate`, someone needs to write some documentation.
+Brown is a "framework for autonomous agents".  That is, essentially, a
+high-falutin' way of saying that you can write some code to do some stuff.
+
+More precisely, Brown agents are (typically) small, standalone blocks of
+code (encapsulated in a single class) which wait for some stimuli, and then
+react to it.  Often, that stimuli is receiving a message (via an AMQP broker
+such as [RabbitMQ](http://rabbitmq.org/), however an agent can do anything
+it pleases (query a database, watch a filesystem, receive HTTP requests,
+whatever) to get stimuli to respond to.
+
 
 # Installation
 
 It's a gem:
 
-    gem install gemplate
+    gem install brown
 
 There's also the wonders of [the Gemfile](http://bundler.io):
 
-    gem 'gemplate'
+    gem 'brown'
 
 If you're the sturdy type that likes to run from git:
 
-    rake build; gem install pkg/gemplate-<whatever>.gem
+    rake build; gem install pkg/brown-<whatever>.gem
 
 Or, if you've eschewed the convenience of Rubygems entirely, then you
 presumably know what to do already.
@@ -22,18 +29,73 @@ presumably know what to do already.
 
 # Usage
 
-Examples go here.
+To make something an agent, you simply create a subclass of `Brown::Agent`. 
+You can then use a simple DSL to define "stimuli", each of which (when
+triggered) cause a new instance of the class to be instantiated and a method
+(specified by the stimulus) to be invoked in a separate thread.  You can do
+arbitrary things to detect stimuli, however there are a number of
+pre-defined stimuli you can use to do standard things, like run something
+periodically, or process a message on an AMQP queue.
 
-Hopefully that should all be fairly self-explanatory.  If not, well, there's
-more detailed documentation in the auto-generated YARD docs.
+As a very simple example, say you wanted to print `foo` every five seconds. 
+(Yes, you *could* do this in a loop, but humour me, would you?)  Using the
+built-in `every` stimuli, you could do it like this:
+
+    class FooTicker < Brown::Agent
+      every 5 do
+        puts "foo"
+      end
+    end
+
+    FooTicker.run
+
+To demonstrate that each trip of the timer runs in a separate thread, you
+could extend this a little:
+
+    class FooTicker < Brown::Agent
+      every 5 do
+        puts "#{self} is fooing in thread #{Thread.current}"
+      end
+    end
+
+    FooTicker.run
+
+Every five seconds, it should print out a different `FooTicker` and `Thread`
+object.
+
+To show you how `every` is implemented behind the scenes, we can implement
+this directly using the generic method, `stimulate`:
+
+    class FooTicker < Brown::Agent
+      stimulate :foo do |worker|
+        sleep 5
+        worker.call
+      end
+      
+      def foo
+        puts "#{self} is fooing in thread #{Thread.current}"
+      end
+    end
+
+    FooTicker.run
+
+What a `stimulate` declaration says is, quite simply:
+
+ * Run this block over and over and over and over again
+ * When the block wants a worker to run, it should run `worker.call`
+ * I'll then create a new instance of the agent class, and call the method
+   name you passed to `stimulate` in a separate thread.
+
+You can pass arguments to the agent method call, by giving them to
+`worker.call`.
 
 
 # Contributing
 
 Bug reports should be sent to the [Github issue
-tracker](https://github.com/mpalmer/gemplate/issues), or
-[e-mailed](mailto:theshed+gemplate@hezmatt.org).  Patches can be sent as a
-Github pull request, or [e-mailed](mailto:theshed+gemplate@hezmatt.org).
+tracker](https://github.com/mpalmer/brown/issues), or
+[e-mailed](mailto:theshed+brown@hezmatt.org).  Patches can be sent as a
+Github pull request, or [e-mailed](mailto:theshed+brown@hezmatt.org).
 
 
 # Licence

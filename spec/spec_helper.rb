@@ -27,7 +27,11 @@ Spork.each_run do
 	require_relative 'example_group_methods'
 
 	RSpec.configure do |config|
+		config.order = :random
+
 		config.include ExampleMethods
 		config.extend  ExampleGroupMethods
 	end
+
+	require 'brown'
 end
