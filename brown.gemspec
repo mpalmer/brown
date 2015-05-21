@@ -8,7 +8,7 @@ Gem::Specification.new do |s|
 
 	s.platform = Gem::Platform::RUBY
 
-	s.summary  = "A template gem"
+	s.summary  = "Autonomous agent framework"
 
 	s.authors  = ["Matt Palmer"]
 	s.email    = ["theshed+brown@hezmatt.org"]
