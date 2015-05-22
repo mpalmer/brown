@@ -7,7 +7,7 @@ require 'logger'
 
 envied_config = (ENVied.config || ENVied::Configuration.new).tap do |cfg|
 	cfg.enable_defaults!
-	cfg.variable :AMQP_URL, "amqp://localhost"
+	cfg.variable :AMQP_URL, :string, :default => "amqp://localhost"
 	cfg.variable :BROWN_LOG_LEVEL, :string, :default => "info"
 end
 
