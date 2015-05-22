@@ -44,13 +44,11 @@ agent_classes.each do |klass|
 	agents.add(th)
 end
 
-agents.enclose
-
 loop do
 	sleep 1
 
 	agents.list.each do |th|
-		if th.dead?
+		unless th.alive?
 			begin
 				th.join
 			rescue Exception => ex
