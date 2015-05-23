@@ -21,9 +21,10 @@ class Brown::Agent::Memo
 	#   must be in a block, which is itself executed inside a mutex.
 	#
 	def initialize(blk, safe=false)
-		@blk   = blk
-		@mutex = Mutex.new
-		@safe  = safe
+		@blk         = blk
+		@value_mutex = Mutex.new
+		@attr_mutex  = Mutex.new
+		@safe        = safe
 	end
 
 	# Retrieve the value of the memo.
@@ -38,7 +39,7 @@ class Brown::Agent::Memo
 	#
 	def value
 		if block_given?
-			@mutex.synchronize { yield cached_value }
+			@value_mutex.synchronize { yield cached_value }
 			nil
 		else
 			if @safe
@@ -52,12 +53,11 @@ class Brown::Agent::Memo
 
 	private
 
-	# A "raw" (unsafe) accessor to the cached value, or generate the value
-	# and then cache it.
+	# Retrieve or generate the cached value.
 	#
 	# @return [Object]
 	#
 	def cached_value
-		@cached_value ||= @blk.call
+		@attr_mutex.synchronize { @cached_value ||= @blk.call }
 	end
 end
