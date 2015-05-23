@@ -11,9 +11,9 @@
 class Brown::Agent::Memo
 	# Spawn a new memo.
 	#
-	# @option blk [Proc] the block to call to get the value of the memo.
+	# @param blk [Proc] the block to call to get the value of the memo.
 	#
-	# @option safe [Boolean] whether or not the value in the memo is
+	# @param safe [Boolean] whether or not the value in the memo is
 	#   inherently thread-safe for access.  This should only be set when the
 	#   object cannot be changed, or when the object has its own locking to
 	#   protect against concurrent access.  The default is to mark the

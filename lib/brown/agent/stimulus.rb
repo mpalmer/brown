@@ -26,16 +26,16 @@ class Brown::Agent::Stimulus
 
 	# Create a new stimulus.
 	#
-	# @option method_name [String] The method to call on an instance of
+	# @param method_name [String] The method to call on an instance of
 	#   `agent_class` to process a single stimulus event.
 	#
-	# @option stimuli_proc [Proc] What to call over and over again to listen
+	# @param stimuli_proc [Proc] What to call over and over again to listen
 	#   for new stimulus events.
 	#
-	# @option agent_class [Class] The class to instantiate when processing
+	# @param agent_class [Class] The class to instantiate when processing
 	#   stimulus events.
 	#
-	# @option logger [Logger] Where to log things to for this stimulus.
+	# @param logger [Logger] Where to log things to for this stimulus.
 	#   If left as the default, no logging will be done.
 	#
 	def initialize(method_name:, stimuli_proc:, agent_class:, logger: Logger.new("/dev/null"))
@@ -48,10 +48,10 @@ class Brown::Agent::Stimulus
 
 	# Fire off the stimulus listener.
 	#
-	# @option once [Symbol, NilClass] Ordinarily, when the stimulus is
-	#   run, it just keeps going forever (or until stopped, at least).  If you
-	#   just want to run the stimulus listener proc once, and then return, you
-	#   can pass the special symbol `:once` here.
+	# @param once [Symbol, NilClass] Ordinarily, when the stimulus is run, it
+	#   just keeps going forever (or until stopped, at least).  If you just
+	#   want to run the stimulus listener proc once, and then return, you can
+	#   pass the special symbol `:once` here.
 	#
 	def run(once = nil)
 		if once == :once

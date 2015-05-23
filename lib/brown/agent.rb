@@ -29,7 +29,7 @@ class Brown::Agent
 		#
 		# @see .every
 		#
-		# @option method_name [Symbol] the name of the method to call when the
+		# @param method_name [Symbol] the name of the method to call when the
 		#   stimulus is triggered.
 		#
 		# @yieldparam worker [Proc] call this when you want a stimulus
@@ -95,10 +95,10 @@ class Brown::Agent
 		#
 		# @see .safe_memo
 		#
-		# @option name [Symbol] the name of the memo, and hence the name of the
+		# @param name [Symbol] the name of the memo, and hence the name of the
 		#   method that should be called to retrieve the memo's value.
 		#
-		# @option safe [Boolean] whether or not the object will be "safe" for
+		# @param safe [Boolean] whether or not the object will be "safe" for
 		#   concurrent access by multiple threads.  Do *not* enable this
 		#   unless you are completely sure.
 		#
@@ -137,7 +137,7 @@ class Brown::Agent
 		# between triggers, so there might be a bit of an extra delay between
 		# invocations.
 		#
-		# @option n [Numeric] The amount of time which should elapse between
+		# @param n [Numeric] The amount of time which should elapse between
 		#   invocations of the block.
 		#
 		# @yield every `n` seconds.
