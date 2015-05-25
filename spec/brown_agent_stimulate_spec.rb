@@ -25,7 +25,7 @@ describe "Brown::Agent.stimulate" do
 		it "stores the method to call in the stimulus" do
 			expect(stimulus.method_name).to eq(:foo)
 		end
-		
+
 		it "stores the class to instantiate in the stimulus" do
 			expect(stimulus.agent_class).to eq(agent_class)
 		end

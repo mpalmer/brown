@@ -1,10 +1,14 @@
-require 'git-version-bump' rescue nil
+begin
+	require 'git-version-bump'
+rescue LoadError
+	nil
+end
 
 Gem::Specification.new do |s|
 	s.name = "brown"
 
 	s.version = GVB.version rescue "0.0.0.1.NOGVB"
-	s.date    = GVB.date    rescue Time.now.strftime("%Y-%m-%d")
+	s.date =    GVB.date    rescue Time.now.strftime("%Y-%m-%d")
 
 	s.platform = Gem::Platform::RUBY
 
@@ -19,7 +23,7 @@ Gem::Specification.new do |s|
 
 	s.required_ruby_version = ">= 2.1.0"
 
-#	s.add_runtime_dependency "bunny", "~> 1.9"
+	s.add_runtime_dependency "bunny", "~> 1.7"
 	s.add_runtime_dependency "envied", "~> 0.8"
 
 	s.add_development_dependency 'bundler'

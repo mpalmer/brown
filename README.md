@@ -90,6 +90,62 @@ You can pass arguments to the agent method call, by giving them to
 `worker.call`.
 
 
+## AMQP publishing / consumption
+
+Since message-based communication is a common pattern amongst cooperating
+groups of agents, Brown comes with some helpers to make using AMQP painless.
+
+Firstly, to publish a message, you need to declare a publisher, and then use
+it somewhere.  To declare a publisher, you use the `amqp_publisher` method:
+
+    class AmqpPublishingAgent < Brown::Agent
+      amqp_publisher :foo
+    end
+
+There are a number of options you can add to this call, to set the AMQP
+server URL, change the way that the AMQP exchange is declared, and a few
+other things.  For all the details on those, see the API docs for
+{Brown::Agent.amqp_publisher}.
+
+Once you have declared a publisher, you can send it messages:
+
+    class AmqpPublishingAgent < Brown::Agent
+      amqp_publisher :foo, exchange_name: :foo, exchange_type: :fanout
+
+      every 5 do
+        foo.publish("FOO!")
+      end
+    end
+
+The above example will perform the extremely important task of sending a
+message containing the body `FOO!` every five seconds, forever.  Hopefully
+you can come up with some more practical uses for this functionality.
+
+
+### Consuming Messages
+
+Messages being received are just like any other stimulus: you give a block
+of code to run when a message is received.  In its simplest form, it looks
+like this:
+
+    class AmqpListenerAgent < Brown::Agent
+      amqp_listener :foo do |msg|
+        logger.info "Received message: #{msg.payload}"
+        msg.ack
+      end
+    end
+
+This example sets up a queue to receive messages send to the exchange `foo`,
+and then simply logs every message it receives.  Note the `msg.ack` call;
+this is important so that the broker knows that the message has been
+received and can send you another message.  If you forget to do this, you'll
+only ever receive one message.
+
+The `amqp_listener` method can take a *lot* of different options to
+customise how it works; you'll want to read {Brown::Agent.amqp_listener} to
+find out all about it.
+
+
 ## Running agents on the command line
 
 The easiest way to run agents "in production" is to use the `brown` command.

@@ -4,7 +4,7 @@ describe "Brown::Agent.memo" do
 	class VarAgent < Brown::Agent; end
 	VarAgent.safe_memo(:foo) { rand(1000000) }
 	VarAgent.memo(:locked)   { 42 }
-	
+
 	it "is only evaluated once even when called multiple times" do
 		i = VarAgent.new
 		val = i.foo
@@ -20,7 +20,7 @@ describe "Brown::Agent.memo" do
 		expected = VarAgent.new.foo
 		val = nil
 		VarAgent.new.foo { |v| val = v }
-		
+
 		expect(val).to eq(expected)
 	end
 

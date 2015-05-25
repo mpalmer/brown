@@ -4,7 +4,7 @@ module Brown
 	# Signals to a running stimulus or worker that it needs to die.
 	#
 	class StopSignal < Exception; end
-	
+
 	#:nodoc:
 	# Signals to a running stimulus or worker that it needs to finish off
 	# what it is doing and then terminate.
@@ -13,5 +13,7 @@ module Brown
 end
 
 require_relative 'brown/agent'
+require_relative 'brown/agent/amqp_message'
+require_relative 'brown/agent/amqp_publisher'
 require_relative 'brown/agent/memo'
 require_relative 'brown/agent/stimulus'

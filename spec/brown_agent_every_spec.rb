@@ -18,7 +18,7 @@ describe "Brown::Agent.every" do
 		expect(agent_class).to receive(:sleep).with(5) { agent_class.stop }
 
 		expect(mock).to receive(:tick).thrice
-		
+
 		agent_class.run
 	end
 end

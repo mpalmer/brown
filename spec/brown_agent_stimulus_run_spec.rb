@@ -31,11 +31,11 @@ describe "Brown::Agent::Stimulus#run" do
 				end
 			end
 		end
-		
+
 		it "runs OK in single-shot mode" do
 			expect(proc_mock).to receive(:foo).once.and_return(true)
 			in_q.push(proc_mock)
-			
+
 			stimulus.run(:once)
 		end
 
@@ -43,11 +43,11 @@ describe "Brown::Agent::Stimulus#run" do
 			# Need to return a real Thread, because ThreadGroup, which Stimulus
 			# uses internally, checks for that kind of thing
 			expect(Thread).to receive(:new).twice.and_return(Thread.new {})
-			
+
 			2.times { in_q.push(proc_mock) }
 
 			stimulus.run
-		end 
+		end
 
 		it "logs an exploded stimulus worker" do
 			expect(proc_mock)
@@ -60,7 +60,7 @@ describe "Brown::Agent::Stimulus#run" do
 			expect(mock_logger).to receive(:info)
 
 			in_q.push(proc_mock)
-			
+
 			stimulus.run
 		end
 
@@ -68,7 +68,7 @@ describe "Brown::Agent::Stimulus#run" do
 
 	context "stimulus proc that loses its shit" do
 		let(:stimuli_proc) { ->(worker) { proc_mock.foo } }
-		
+
 		it "logs the error" do
 			expect(proc_mock)
 			  .to receive(:foo)
@@ -81,7 +81,7 @@ describe "Brown::Agent::Stimulus#run" do
 				expect(blk.call).to match(/ffca8676.*RuntimeError/)
 			end
 			expect(mock_logger).to receive(:info)
-			
+
 			stimulus.run
 		end
 	end

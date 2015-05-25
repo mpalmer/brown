@@ -11,7 +11,7 @@ class Brown::Agent::Stimulus
 	# @return [String]
 	#
 	attr_reader :method_name
-	
+
 	# The chunk of code to call over and over again to listen for the stimulus.
 	#
 	# @return [Proc]
