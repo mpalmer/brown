@@ -40,11 +40,11 @@ class Brown::Agent
 			@stimuli ||= []
 
 			@stimuli << Brown::Agent::Stimulus.new(
-							  method_name:  method_name,
-							  stimuli_proc: blk,
-							  agent_class:  self,
-							  logger:       logger
-							)
+			              method_name:  method_name,
+			              stimuli_proc: blk,
+			              agent_class:  self,
+			              logger:       logger
+			            )
 		end
 
 		# Define a "memo" for this agent.

@@ -258,9 +258,8 @@ describe "Brown::Agent.amqp_listener" do
 		end
 
 		it "logs an error" do
-			expect(log_mock)
-			  .to receive(:error) do |&blk|
-			  	expect(blk.call).to match(/bind.*no exchange 'unknown_exchange'/)
+			expect(log_mock).to receive(:error) do |&blk|
+				expect(blk.call).to match(/bind.*no exchange 'unknown_exchange'/)
 			end
 
 			go
