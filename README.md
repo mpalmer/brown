@@ -107,7 +107,7 @@ server URL, change the way that the AMQP exchange is declared, and a few
 other things.  For all the details on those, see the API docs for
 {Brown::Agent.amqp_publisher}.
 
-Once you have declared a publisher, you can send it messages:
+Once you have declared a publisher, you can send messages through it:
 
     class AmqpPublishingAgent < Brown::Agent
       amqp_publisher :foo, exchange_name: :foo, exchange_type: :fanout
