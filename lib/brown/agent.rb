@@ -109,12 +109,12 @@ class Brown::Agent
 			@memos ||= {}
 			@memos[name] = Brown::Agent::Memo.new(generator, safe)
 
-			define_method(name) do |&blk|
-				self.class.__send__(name, &blk)
+			define_method(name) do |test=nil, &blk|
+				self.class.__send__(name, test, &blk)
 			end
 
-			self.singleton_class.__send__(:define_method, name) do |&blk|
-				memos[name].value(&blk)
+			self.singleton_class.__send__(:define_method, name) do |test=nil, &blk|
+				memos[name].value(test, &blk)
 			end
 		end
 

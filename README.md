@@ -154,6 +154,145 @@ those classes will be run in individual threads, with automatic restarting.
 Convenient, huh?
 
 
+## Testing
+
+Brown comes with facilities to unit test all of your agents.  Since agents
+simply receive stimuli and act on them, testing is quite simple in
+principle, but the parallelism inherent in agents can make them hard to test
+without some extra helpers.
+
+To enable the additional testing helpers, you must `require
+'brown/test_helpers'` somewhere in your testing setup, before you define
+your agents.  This will add a bunch of extra methods, defined in
+{Brown::TestHelpers} to {Brown::Agent}, which you can then call to examine
+certain aspects of the agent (such as `memo?(name)` and
+`amqp_publisher?(name)`) as well as send stimuli to the agent and have it
+behave appropriately, which you can then make assertions about (either by
+examining the new state of the overall system, or through the use of
+mocks/spies).
+
+While full documentation for all of the helper methods are available in the
+YARD docs for {Brown::TestHelpers}, here are some specific tips for using
+them to test certain aspects of your agents in popular testing frameworks.
+
+
+### RSpec
+
+To test a directly declared stimulus, you don't need to do very much -- you
+can just instantiate the agent class and call the method you want:
+
+    class StimulationAgent < Brown::Agent
+      stimulate :foo do |worker|
+        # Something something
+        worker.call
+      end
+    end
+
+    describe StimulationAgent do
+      it "does something" do
+        subject.foo
+
+        expect(something).to eq(something_else)
+      end
+    end
+
+For memos, you can assert that an agent has a given memo quite easily:
+
+    class MemoAgent < Brown::Agent
+      memo :blargh do
+        "ohai"
+      end
+    end
+
+    describe MemoAgent do
+      it "has the memo" do
+        expect(MemoAgent).to have_memo(:blargh)
+      end
+    end
+
+Then, on top of that, you can assert the value is as you expected, because
+memos are accessable at the class level:
+
+    it "has the right value" do
+      expect(MemoAgent.blargh(:test)).to eq("ohai")
+    end
+
+Or even put it in a let:
+
+    context "value" do
+      let(:value) { MemoAgent.blargh(:test) }
+    end
+
+Note in the above examples that we passed the special value `:test` to the
+call to `.blargh`; that was to let it know that we're definitely testing it
+out.  Recall that, ordinarily, a memo that is declared "unsafe" can only be
+accessed inside a block passed to the memo method.  For testing purposes,
+rather than having to pass a block, we instead just pass in the special
+`:test` symbol and it'll let us get the value back.  Note that this won't
+work unless you have `require`d `'brown/test_helpers'` *before* you defined
+the agent class.
+
+Testing timers is pretty straightforward, too; just trigger away:
+
+    class TimerAgent < Brown::Agent
+      every 10 do
+        $stderr.puts "Tick tock"
+      end
+    end
+
+    describe TimerAgent do
+      it "goes off on time" do
+        expect($stderr).to receive(:info).with("Tick tock")
+
+        TimerAgent.trigger(10)
+      end
+    end
+
+It is pretty trivial to assert that some particular message was published
+via AMQP:
+
+    class PublishTimerAgent < Brown::Agent
+      amqp_publisher :time
+
+      every 86400 do
+        time.publish "One day more!"
+      end
+    end
+
+    describe PublishTimerAgent do
+      it "publishes to schedule" do
+        expect(PublishTimerAgent.time).to receive(:publish).with("One day more!")
+
+        PublishTimerAgent.trigger(86400)
+      end
+    end
+
+Testing what happens when a particular message gets received isn't much
+trickier:
+
+    class ReceiverAgent < Brown::Agent
+      amqp_listener "some_exchange" do |msg|
+        $stderr.puts "Message: #{msg.payload}"
+        msg.ack
+      end
+    end
+
+    describe ReceiverAgent do
+      it "receives the message OK" do
+        expect($stderr).to receive(:puts).with("Message: ohai!")
+
+        was_acked = ReceiverAgent.amqp_receive("some_exchange", "ohai!")
+        expect(was_acked).to be(true)
+      end
+    end
+
+
+### Minitest / other testing frameworks
+
+I don't have any examples for other testing frameworks, because I only use
+RSpec.  Contributions on this topic would be greatly appreciated.
+
+
 # Contributing
 
 Bug reports should be sent to the [Github issue

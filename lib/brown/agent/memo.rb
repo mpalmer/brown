@@ -20,11 +20,12 @@ class Brown::Agent::Memo
 	#   memoised object as "unsafe", in which case all access to the variable
 	#   must be in a block, which is itself executed inside a mutex.
 	#
-	def initialize(blk, safe=false)
+	def initialize(blk, safe=false, test=false)
 		@blk         = blk
 		@value_mutex = Mutex.new
 		@attr_mutex  = Mutex.new
 		@safe        = safe
+		@test        = test
 	end
 
 	# Retrieve the value of the memo.
@@ -37,12 +38,12 @@ class Brown::Agent::Memo
 	# @raise [RuntimeError] if called on an unsafe memo without passing a
 	#   block.
 	#
-	def value
+	def value(test=nil)
 		if block_given?
 			@value_mutex.synchronize { yield cached_value }
 			nil
 		else
-			if @safe
+			if @safe || (@test && test == :test)
 				cached_value
 			else
 				raise RuntimeError,
