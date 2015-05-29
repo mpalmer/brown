@@ -397,4 +397,12 @@ class Brown::Agent
 			end
 		end
 	end
+
+	# The logger for this agent.
+	#
+	# @return [Logger]
+	#
+	def logger
+		self.class.logger
+	end
 end
