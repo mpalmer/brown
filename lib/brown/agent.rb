@@ -245,7 +245,7 @@ class Brown::Agent
 
 			memo(queue_memo) do
 				begin
-					amqp = Bunny.new(amqp_url)
+					amqp = Bunny.new(amqp_url, logger: logger)
 					amqp.start
 				rescue Bunny::TCPConnectionFailed
 					logger.error { "Failed to connect to #{amqp_url}" }
