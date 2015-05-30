@@ -36,11 +36,11 @@ Signal.trap("TERM") { stop_agents(agents) }
 Signal.trap("HUP", "IGNORE")
 Signal.trap("USR1") do
 	Brown::Agent.more_log_detail
-	Brown::Agent.logger.info { "Logging severity now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}" }
+	$stderr.puts "Log level now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}"
 end
 Signal.trap("USR2") do
 	Brown::Agent.less_log_detail
-	Brown::Agent.logger.info { "Logging severity now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}" }
+	$stderr.puts "Log level now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}"
 end
 
 agent_classes.each do |klass|
