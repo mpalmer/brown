@@ -19,7 +19,7 @@ agent_classes = ObjectSpace.each_object(Class).select do |k|
 	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
 end
 
-Brown::Agent.logger = Logger.new($stdout)
+Brown::Agent.logger = Logger.new($stderr)
 Brown::Agent.logger.level = Logger.const_get(ENVied.BROWN_LOG_LEVEL.upcase.to_sym)
 Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$} [#{s[0]}] #{msg}\n" }
 
@@ -31,8 +31,14 @@ def stop_agents(agents)
 	end
 end
 
-Signal.trap("INT")  { stop_agents(agents) }
-Signal.trap("TERM") { stop_agents(agents) }
+Signal.trap("INT") do
+	$stderr.puts "Received SIGINT; stopping agents and exiting"
+	stop_agents(agents)
+end
+Signal.trap("TERM") do
+	$stderr.puts "Received SIGTERM; stopping agents and exiting"
+	stop_agents(agents)
+end
 Signal.trap("HUP", "IGNORE")
 Signal.trap("USR1") do
 	Brown::Agent.more_log_detail
@@ -43,6 +49,8 @@ Signal.trap("USR2") do
 	$stderr.puts "Log level now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}"
 end
 
+Brown::Agent.logger.info { "Brown starting up..." }
+
 agent_classes.each do |klass|
 	th = Thread.new(klass) do |klass|
 		klass.run
@@ -50,6 +58,8 @@ agent_classes.each do |klass|
 	end
 
 	agents.add(th)
+
+	Brown::Agent.logger.info { "Started agent #{klass}" }
 end
 
 loop do
