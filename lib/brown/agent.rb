@@ -361,6 +361,14 @@ class Brown::Agent
 			(@logger = (l || @logger)) || (self == Brown::Agent ? Logger.new($stderr) : Brown::Agent.logger)
 		end
 
+		def more_log_detail
+			logger.level -= 1
+		end
+
+		def less_log_detail
+			logger.level += 1
+		end
+
 		private
 
 		# The available stimuli.
