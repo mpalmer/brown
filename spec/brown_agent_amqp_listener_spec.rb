@@ -106,7 +106,7 @@ describe "Brown::Agent.amqp_listener" do
 			agent_class.run
 		end
 
-		it "creates a queue with a specified name" do
+		it "creates a queue with the default name" do
 			expect(channel_mock)
 			  .to receive(:queue)
 			  .with("-some_exchange", durable: true)
@@ -119,6 +119,36 @@ describe "Brown::Agent.amqp_listener" do
 			expect(queue_mock)
 			  .to receive(:bind)
 			  .with("some_exchange")
+
+			go
+		end
+	end
+
+	context "with an array of exchange names" do
+		let(:go) do
+			agent_class.amqp_listener ["some_exchange", "other_exchange"] do
+				# NOTHING!
+			end
+
+			agent_class.run
+		end
+
+		it "creates a queue with the default name" do
+			expect(channel_mock)
+			  .to receive(:queue)
+			  .with("-some_exchange-other_exchange", durable: true)
+			  .and_return(queue_mock)
+
+			go
+		end
+
+		it "binds the queues to the exchange" do
+			expect(queue_mock)
+			  .to receive(:bind)
+			  .with("some_exchange")
+			expect(queue_mock)
+			  .to receive(:bind)
+			  .with("other_exchange")
 
 			go
 		end

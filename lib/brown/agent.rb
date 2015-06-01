@@ -194,7 +194,12 @@ class Brown::Agent
 		# processes or machines, to share the same queue of messages to
 		# process, for throughput or redundancy reasons.
 		#
-		# @param exchange_name [#to_s] the name of the exchange to bind to.
+		# @param exchange_name [#to_s, Array<#to_s>] the name of the exchange
+		#   to bind to.  You can also specify an array of exchange names, to
+		#   have all of them put their messages into the one queue.  This can
+		#   be dangerous, because you need to make sure that your message
+		#   handler can process the different types of messages that might be
+		#   sent to the different exchangs.
 		#
 		# @param queue_name [#to_s] the name of the queue to create, if you
 		#   don't want to use the class-derived default for some reason.
@@ -241,7 +246,12 @@ class Brown::Agent
 			worker_method = "amqp_listener_worker_#{listener_uuid}".to_sym
 			queue_memo    = "amqp_listener_queue_#{listener_uuid}".to_sym
 
-			queue_name ||= self.name.to_s + (exchange_name.to_s == "" ? "" : "-#{exchange_name}")
+			exchange_list = Array === exchange_name ?
+			                  exchange_name :
+			                  [exchange_name]
+
+			munged_exchange_list = exchange_list.map { |n| n.to_s == "" ? "" : "-#{n.to_s}" }.join
+			queue_name ||= self.name.to_s + munged_exchange_list
 
 			memo(queue_memo) do
 				begin
@@ -264,7 +274,7 @@ class Brown::Agent
 				bind_queue(
 				  amqp_session:  amqp,
 				  queue_name:    queue_name,
-				  exchange_name: exchange_name,
+				  exchange_list: exchange_list,
 				  concurrency:   concurrency
 				)
 			end
@@ -383,23 +393,25 @@ class Brown::Agent
 		#
 		attr_reader :memos
 
-		def bind_queue(amqp_session:, queue_name:, exchange_name:, concurrency:)
+		def bind_queue(amqp_session:, queue_name:, exchange_list:, concurrency:)
 			ch = amqp_session.create_channel
 			ch.prefetch(concurrency)
 
 			ch.queue(queue_name, durable: true).tap do |q|
-				if exchange_name != ""
-					begin
-						q.bind(exchange_name)
-					rescue Bunny::NotFound => ex
-						logger.error { "bind failed: #{ex.message}" }
-						sleep 5
-						return bind_queue(
-						         amqp_session: amqp_session,
-						         queue_name: queue_name,
-						         exchange_name: exchange_name,
-						         concurrency: concurrency
-						       )
+				exchange_list.each do |exchange_name|
+					if exchange_name != ""
+						begin
+							q.bind(exchange_name)
+						rescue Bunny::NotFound => ex
+							logger.error { "bind failed: #{ex.message}" }
+							sleep 5
+							return bind_queue(
+										amqp_session: amqp_session,
+										queue_name: queue_name,
+										exchange_list: exchange_list,
+										concurrency: concurrency
+									 )
+						end
 					end
 				end
 			end
