@@ -136,7 +136,7 @@ describe "Brown::Agent.amqp_listener" do
 		it "creates a session with the special URL" do
 			expect(Bunny)
 			  .to receive(:new)
-			  .with("amqp://example.com")
+			  .with("amqp://example.com", logger: log_mock)
 
 			go
 		end
