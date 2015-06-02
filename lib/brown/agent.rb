@@ -284,7 +284,7 @@ class Brown::Agent
 			stimulate(worker_method) do |worker|
 				__send__(queue_memo) do |queue|
 					queue.subscribe(manual_ack: true, block: true) do |di, prop, payload|
-						yield Brown::Agent::AMQPMessage.new(di, prop, payload)
+						worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
 					end
 				end
 			end
