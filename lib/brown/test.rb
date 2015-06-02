@@ -101,7 +101,13 @@ module Brown::TestHelpers
 	def amqp_listener_with_test(exchange_name, *args, &blk)
 		@amqp_listeners ||= {}
 
-		@amqp_listeners[exchange_name.to_s] = blk
+		if exchange_name.is_a? Array
+			exchange_name.each do |en|
+				@amqp_listeners[en.to_s] = blk
+			end
+		else
+			@amqp_listeners[exchange_name.to_s] = blk
+		end
 
 		amqp_listener_without_test(exchange_name, *args, &blk)
 	end
