@@ -21,7 +21,7 @@ end
 
 Brown::Agent.logger = Logger.new($stderr)
 Brown::Agent.logger.level = Logger.const_get(ENVied.BROWN_LOG_LEVEL.upcase.to_sym)
-Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$} [#{s[0]}] #{msg}\n" }
+Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$}-#{Thread.current.object_id} [#{s[0]}] #{msg}\n" }
 
 agents = ThreadGroup.new
 
