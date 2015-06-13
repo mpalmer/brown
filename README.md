@@ -90,6 +90,172 @@ You can pass arguments to the agent method call, by giving them to
 `worker.call`.
 
 
+## Agent-wide common variables
+
+There is some state you will want to keep across the entire agent.  For
+this, Brown provides the concept of "memos".  These are persistent objects,
+which you access via a class or instance method.  To declare them, you
+simply do:
+
+    class MemoUser < Brown::Agent
+      memo(:foo) { Foo.new }
+    end
+
+The way this works is that the memo defines a method (both class and
+instance) which, the first time you run it, runs the provided block to
+create the memo object.  Thereafter, that cached object is provided to the
+caller of the memo method.
+
+Because of Brown's multi-threaded nature, memos come with a built-in mutex
+to prevent concurrent usage.  That means that every time you want to access
+the memo, you must do so inside a block:
+
+    class MemoUser < Brown::Agent
+      memo(:foo) { Foo.new }
+
+      every(10) do
+        foo do |f|
+          f.frob
+        end
+      end
+    end
+
+The crucial thing to note here is that you *only have the memo lock inside
+the block*.  If you were to capture the memo object into a variable outside
+the block, and then use it (read *or* write) outside the block, Really Bad
+Things can happen.  So **don't do that**.
+
+When you have multiple memos, it is entirely possible that you can end up
+deadlocking your agent by acquiring the locks for various memos in different
+orders.  Those dining philosophers are always getting themselves in a
+muddle.  To prevent this problem, it is highly recommended that you always
+acquire the locks for your memos in the order they are written in the class
+definition:
+
+    class MemoUser < Brown::Agent
+      memo(:foo) { Foo.new }
+      memo(:bar) { Bar.new }
+
+      every(5) do
+        # Acquiring a single lock is OK
+        foo do |f|
+          f.brob
+        end
+      end
+
+      every(6) do
+        # Acquiring a single lock, even if it is later in the
+        # list, is fine
+        bar do |b|
+          b.baznicate(b)
+        end
+      end
+
+      every(7) do
+        # This is the right order to acquire nested locks
+        foo do |f|
+          bar do |b|
+            f.frob(b)
+          end
+        end
+      end
+
+      every(7) do
+        # This is THE WRONG WAY AROUND.  DO NOT DO THIS!
+        # YOU WILL GET DEADLOCKS!
+        bar do |b|
+          foo do |f|
+            b.baznicate(f)
+          end
+        end
+      end
+    end
+
+Another "gotcha" in the world of memos is that the memoised object itself is
+persistent.  When you get the lock, and the memo object comes in via the
+argument to your block, that is *a reference* to the memo object.  That
+means that reassigning that variable to a new object won't change the value
+of the memo object:
+
+    class MemoUser < Brown::Agent
+      memo(:now) { Time.now }
+
+      every(5) do
+        now do |t|
+          puts t
+        end
+      end
+
+      every(60) do
+        now do |t|
+          t = Time.now
+        end
+      end
+    end
+
+The above code will *always* print the time as at the first time that `now`
+was called, even though every minute we *think* we're resetting the memo
+value to a new `Time`.
+
+The "hack" around this is to use a single-value array to "contain" the
+object that we actually want to periodically replace:
+
+    class MutableMemoUser < Brown::Agent
+      memo(:now) { [Time.now] }
+
+      every(5) do
+        now do |t|
+          puts t[0]
+        end
+      end
+
+      every(60) do
+        now to |t|
+          t[0] = Time.now
+        end
+      end
+    end
+
+This example code will print the same time for a minute, before changing to
+a new minute.
+
+
+### Thread-safe memos
+
+There are some classes which are themselves thread-safe -- usually because
+the class author has gone to some trouble to provide zer own, more
+fine-grained, locking on the data within the object.  If you are *quite
+sure* you have such a thread-safe object to memoise, you can use
+{Brown::Agent::ClassMethods.safe_memo} for that purpose:
+
+    class SafeMemoUser < Brown::Agent
+      safe_memo(:foo) { ThreadSafeFoo.new }
+    end
+
+The benefit of this form of memos is that you don't have to access them in a
+block:
+
+    class SafeMemoUser < Brown::Agent
+      safe_memo(:foo) { ThreadSafeFoo.new }
+
+      every(10) do
+        foo.frob
+      end
+    end
+
+Like regular memos, you cannot reassign a thread-safe memo to another
+object:
+
+    class SafeMemoUser < Brown::Agent
+      safe_memo(:foo) { ThreadSafeFoo.new }
+
+      every(10) do
+        # This will explode with a NameError
+        foo = ThreadSafeFoo.new
+      end
+    end
+
+
 ## AMQP publishing / consumption
 
 Since message-based communication is a common pattern amongst cooperating
