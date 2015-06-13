@@ -5,7 +5,7 @@ require 'brown/agent/amqp_message_mock'
 #
 # You can cause these methods to become part of {Brown::Agent} with
 #
-#     require 'brown/test_helpers'
+#     require 'brown/test'
 #
 module Brown::TestHelpers
 	#:nodoc:
@@ -51,6 +51,23 @@ module Brown::TestHelpers
 		@memos[name] = Brown::Agent::Memo.new(generator, safe, true)
 	end
 
+	# Reset all memos to "undefined" values.
+	#
+	# Because memo values are cached at the class level, this means that they're
+	# cached between test cases.  Often, this isn't what you want (because if the
+	# value of the memo was changed by a test case, the next test won't run in a
+	# pristine environment).  Calling this method will cause all of the memos in
+	# the agent to be reset to a state which is the same as if the memo had never
+	# been called at all.
+	#
+	def reset_memos
+		@memos ||= {}
+
+		@memos.values.each do |memo|
+			memo.instance_variable_set(:@cached_value, nil)
+		end
+	end
+
 	# Is there a timer which will go off every `n` seconds registered on this
 	# agent?
 	#
@@ -67,7 +84,14 @@ module Brown::TestHelpers
 	# @param n [Integer]
 	#
 	def trigger(n)
-		self.instance_methods.select { |m| m =~ /^every_#{n}__/ }.each do |m|
+		trigger_methods = self.instance_methods.select { |m| m =~ /^every_#{n}__/ }
+
+		if trigger_methods.empty?
+			raise RuntimeError,
+			      "Nothing is set to run every #{n} second#{n == 1 ? "" : "s"}"
+		end
+
+		trigger_methods.each do |m|
 			self.new.__send__(m)
 		end
 	end
@@ -146,7 +170,11 @@ module Brown::TestHelpers
 
 		msg = Brown::Agent::AMQPMessageMock.new(opts.merge(payload: payload))
 
-		@amqp_listeners[exchange_name].call(msg)
+		self.new.tap do |p|
+			uuid = SecureRandom.uuid
+			p.singleton_class.__send__(:define_method, uuid, &@amqp_listeners[exchange_name])
+			p.__send__(uuid, msg)
+		end
 
 		msg.acked?
 	end
@@ -155,4 +183,3 @@ end
 class << Brown::Agent
 	include Brown::TestHelpers
 end
-

@@ -161,15 +161,14 @@ simply receive stimuli and act on them, testing is quite simple in
 principle, but the parallelism inherent in agents can make them hard to test
 without some extra helpers.
 
-To enable the additional testing helpers, you must `require
-'brown/test_helpers'` somewhere in your testing setup, before you define
-your agents.  This will add a bunch of extra methods, defined in
-{Brown::TestHelpers} to {Brown::Agent}, which you can then call to examine
-certain aspects of the agent (such as `memo?(name)` and
-`amqp_publisher?(name)`) as well as send stimuli to the agent and have it
-behave appropriately, which you can then make assertions about (either by
-examining the new state of the overall system, or through the use of
-mocks/spies).
+To enable the additional testing helpers, you must `require 'brown/test'`
+somewhere in your testing setup, before you define your agents.  This will
+add a bunch of extra methods, defined in {Brown::TestHelpers} to
+{Brown::Agent}, which you can then call to examine certain aspects of the
+agent (such as `memo?(name)` and `amqp_publisher?(name)`) as well as send
+stimuli to the agent and have it behave appropriately, which you can then
+make assertions about (either by examining the new state of the overall
+system, or through the use of mocks/spies).
 
 While full documentation for all of the helper methods are available in the
 YARD docs for {Brown::TestHelpers}, here are some specific tips for using
@@ -177,6 +176,10 @@ them to test certain aspects of your agents in popular testing frameworks.
 
 
 ### RSpec
+
+To enable additional RSpec-specific test integration (resetting memos at the
+end of each test), then **instead** of `require 'brown/test'`, you should
+`require 'brown/rspec'` before your agent code is loaded.
 
 To test a directly declared stimulus, you don't need to do very much -- you
 can just instantiate the agent class and call the method you want:
