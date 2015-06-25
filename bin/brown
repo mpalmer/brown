@@ -23,10 +23,10 @@ Brown::Agent.logger = Logger.new($stderr)
 Brown::Agent.logger.level = Logger.const_get(ENVied.BROWN_LOG_LEVEL.upcase.to_sym)
 Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$}-#{Thread.current.object_id} [#{s[0]}] #{msg}\n" }
 
-agents = ThreadGroup.new
+agents = []
 
 def stop_agents(agents)
-	agents.list.each do |th|
+	agents.each do |th|
 		th[:agent_class] && th[:agent_class].stop
 	end
 end
@@ -53,39 +53,45 @@ Brown::Agent.logger.info { "Brown starting up..." }
 
 agent_classes.each do |klass|
 	th = Thread.new(klass) do |klass|
+		Thread.current[:agent_class] = klass
 		klass.run
-		Thread[:agent_class] = klass
 	end
 
-	agents.add(th)
+	agents << th
 
 	Brown::Agent.logger.info { "Started agent #{klass}" }
 end
 
 loop do
-	sleep 1
+	if agents.empty?
+		break
+	end
 
-	agents.list.each do |th|
+	agents.each do |th|
 		unless th.alive?
 			begin
-				th.join
+				th.join(0.5)
 			rescue Exception => ex
 				Brown::Agent.logger.fatal { "Agent #{th[:agent_class]} crashed: #{ex.message} (#{ex.class})" }
 				Brown::Agent.logger.info { ex.backtrace.map { |l| "  #{l}" }.join("\n") }
+
+				Brown::Agent.logger.info { "Re-starting #{klass} agent" }
+
+				new_th = Thread.new(klass) do |klass|
+					Thread.current[:agent_class] = klass
+					klass.run
+				end
+
+				agents << new_th
 			else
-				Brown::Agent.logger.warn "Agent #{th[:agent_class]} terminated itself"
+				Brown::Agent.logger.warn "Agent #{th[:agent_class]} exited cleanly; not restarting"
 			end
+
 			klass = th[:agent_class]
 			th[:agent_class] = nil
-
-			Brown::Agent.logger.info { "Re-starting #{klass} agent" }
-
-			th = Thread.new(klass) do |klass|
-				klass.run
-				Thread[:agent_class] = klass
-			end
-
-			agents.add(th)
+			agents.delete(th)
 		end
 	end
 end
+
+Brown::Agent.logger.info { "Brown exiting" }

@@ -351,6 +351,8 @@ class Brown::Agent
 			(@thread_group.list rescue []).each do |th|
 				th.join
 			end
+
+			@runner_thread.raise(Brown::StopSignal.new("Clean stop"))
 		end
 
 		# Set the logger that this agent will use to report problems.
