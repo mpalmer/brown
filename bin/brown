@@ -27,6 +27,7 @@ agents = []
 
 def stop_agents(agents)
 	agents.each do |th|
+		Brown::Agent.logger.debug { "Stopping agent #{th[:agent_class].inspect} (thread #{th.inspect})" }
 		th[:agent_class] && th[:agent_class].stop
 	end
 end
@@ -60,6 +61,7 @@ agent_classes.each do |klass|
 	agents << th
 
 	Brown::Agent.logger.info { "Started agent #{klass}" }
+	Brown::Agent.logger.debug { "Agent thread is #{th.inspect}" }
 end
 
 loop do
@@ -67,30 +69,30 @@ loop do
 		break
 	end
 
+	sleep 0.5
+
 	agents.each do |th|
-		unless th.alive?
-			begin
-				th.join(0.5)
-			rescue Exception => ex
-				Brown::Agent.logger.fatal { "Agent #{th[:agent_class]} crashed: #{ex.message} (#{ex.class})" }
-				Brown::Agent.logger.info { ex.backtrace.map { |l| "  #{l}" }.join("\n") }
-
-				Brown::Agent.logger.info { "Re-starting #{klass} agent" }
-
-				new_th = Thread.new(klass) do |klass|
-					Thread.current[:agent_class] = klass
-					klass.run
-				end
-
-				agents << new_th
-			else
+		Brown::Agent.logger.debug { "Examining agent thread #{th.inspect}" }
+		begin
+			if th.join(0.5)
 				Brown::Agent.logger.info { "Agent #{th[:agent_class]} exited cleanly; not restarting" }
+				agents.delete(th)
 			end
+		rescue Exception => ex
+			Brown::Agent.logger.fatal { "Agent #{th[:agent_class]} crashed: #{ex.message} (#{ex.class})" }
+			Brown::Agent.logger.info { ex.backtrace.map { |l| "  #{l}" }.join("\n") }
+
+			Brown::Agent.logger.info { "Re-starting #{klass} agent" }
 
 			klass = th[:agent_class]
-			th[:agent_class] = nil
 			agents.delete(th)
+
+			agents << Thread.new(klass) do |klass|
+				Thread.current[:agent_class] = klass
+				klass.run
+			end
 		end
+
 	end
 end
 
