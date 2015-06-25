@@ -84,7 +84,7 @@ loop do
 
 				agents << new_th
 			else
-				Brown::Agent.logger.warn "Agent #{th[:agent_class]} exited cleanly; not restarting"
+				Brown::Agent.logger.info { "Agent #{th[:agent_class]} exited cleanly; not restarting" }
 			end
 
 			klass = th[:agent_class]
