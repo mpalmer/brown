@@ -1,23 +1,25 @@
 require_relative 'spec_helper'
 
 describe "Brown::Agent::Stimulus#run" do
+	uses_logger
+
 	let(:proc_mock) { double(Object) }
-	let(:mock_logger) { instance_double(Logger) }
 
 	let(:in_q)  { Queue.new }
 
 	class AgentClass < Brown::Agent
 		def foo(mock)
-			mock.foo
+			mock.oof
 		end
 	end
 
+	let(:agent) { AgentClass.new({}) }
+
 	let(:stimulus) do
 		Brown::Agent::Stimulus.new(
-		  method_name:  :foo,
-		  stimuli_proc: stimuli_proc,
-		  agent_class:  AgentClass,
-		  logger:       mock_logger
+			method:       agent.method(:foo),
+			stimuli_proc: stimuli_proc,
+			logger:       logger
 		)
 	end
 
@@ -27,13 +29,13 @@ describe "Brown::Agent::Stimulus#run" do
 				begin
 					worker.call(in_q.pop(true))
 				rescue ThreadError
-					raise Brown::FinishSignal
+					stimulus.shutdown
 				end
 			end
 		end
 
 		it "runs OK in single-shot mode" do
-			expect(proc_mock).to receive(:foo).once.and_return(true)
+			expect(proc_mock).to receive(:oof).once.and_return(true)
 			in_q.push(proc_mock)
 
 			stimulus.run(:once)
@@ -51,36 +53,36 @@ describe "Brown::Agent::Stimulus#run" do
 
 		it "logs an exploded stimulus worker" do
 			expect(proc_mock)
-			  .to receive(:foo)
-			  .and_raise(RuntimeError.new("howzat"))
+				.to receive(:oof)
+				.and_raise(RuntimeError.new("howzat"))
 
-			expect(mock_logger).to receive(:error) do |&blk|
+			expect(logger).to receive(:error) do |&blk|
 				expect(blk.call).to match(/Stimulus worker.*howzat.*RuntimeError/)
 			end
-			expect(mock_logger).to receive(:info)
 
 			in_q.push(proc_mock)
 
 			stimulus.run
 		end
-
 	end
 
 	context "stimulus proc that loses its shit" do
-		let(:stimuli_proc) { ->(worker) { proc_mock.foo } }
+		let(:stimuli_proc) do
+			already_run = false
+			->(worker) do
+				if already_run
+					stimulus.shutdown
+				else
+					already_run = true
+					raise(RuntimeError.new("ffca8676"))
+				end
+			end
+		end
 
 		it "logs the error" do
-			expect(proc_mock)
-			  .to receive(:foo)
-			  .and_raise(RuntimeError.new("ffca8676"))
-			expect(proc_mock)
-			  .to receive(:foo)
-			  .and_raise(Brown::FinishSignal)
-
-			expect(mock_logger).to receive(:error) do |&blk|
+			expect(logger).to receive(:error) do |&blk|
 				expect(blk.call).to match(/ffca8676.*RuntimeError/)
 			end
-			expect(mock_logger).to receive(:info)
 
 			stimulus.run
 		end

@@ -1,3 +1,5 @@
+require "service_skeleton/background_worker"
+
 # A single stimulus group in a Brown Agent.
 #
 # This is all the behind-the-scenes plumbing that's required to make the
@@ -6,11 +8,13 @@
 # terribly, terribly wrong somewhere.
 #
 class Brown::Agent::Stimulus
-	# The name of the method to call when the stimulus is triggered.
+	include ServiceSkeleton::BackgroundWorker
+
+	# The (bound) method to call when the stimulus is triggered.
 	#
 	# @return [String]
 	#
-	attr_reader :method_name
+	attr_reader :method
 
 	# The chunk of code to call over and over again to listen for the stimulus.
 	#
@@ -18,35 +22,31 @@ class Brown::Agent::Stimulus
 	#
 	attr_reader :stimuli_proc
 
-	# The class to instantiate to process a stimulus.
-	#
-	# @return [Class]
-	#
-	attr_reader :agent_class
-
 	# Create a new stimulus.
 	#
-	# @param method_name [String] The method to call on an instance of
-	#   `agent_class` to process a single stimulus event.
+	# @param method [String] The (bound) method to call to process a single
+	#   stimulus event.
 	#
-	# @param stimuli_proc [Proc] What to call over and over again to listen
-	#   for new stimulus events.
-	#
-	# @param agent_class [Class] The class to instantiate when processing
-	#   stimulus events.
+	# @param stimuli_proc [Proc] What to call over and over again to collect
+	#   the next stimulus event.
 	#
 	# @param logger [Logger] Where to log things to for this stimulus.
 	#   If left as the default, no logging will be done.
 	#
-	def initialize(method_name:, stimuli_proc:, agent_class:, logger: Logger.new("/dev/null"))
-		@method_name  = method_name
+	def initialize(method:, stimuli_proc:, logger: Logger.new("/dev/null"))
+		@method       = method
 		@stimuli_proc = stimuli_proc
-		@agent_class  = agent_class
-		@thread_group = ThreadGroup.new
+		@threads      = ThreadGroup.new
 		@logger       = logger
+
+		super
 	end
 
-	# Fire off the stimulus listener.
+	def start
+		loop { run }
+	end
+
+	# Run the stimulus listener.
 	#
 	# @param once [Symbol, NilClass] Ordinarily, when the stimulus is run, it
 	#   just keeps going forever (or until stopped, at least).  If you just
@@ -57,87 +57,69 @@ class Brown::Agent::Stimulus
 		if once == :once
 			stimuli_proc.call(->(*args) { process(*args) })
 		else
-			@runner_thread = Thread.current
+			@running = true
 			begin
-				while @runner_thread
+				while @running
 					begin
-						stimuli_proc.call(method(:spawn_worker))
-					rescue Brown::StopSignal, Brown::FinishSignal
-						raise
-					rescue Exception => ex
-						log_failure("Stimuli listener", ex)
+						stimuli_proc.call(->(*args) { spawn_worker(*args) })
+					rescue StandardError => ex
+						log_exception(ex) { "Stimuli listener proc raised exception" }
 					end
 				end
-			rescue Brown::StopSignal
-				stop
-			rescue Brown::FinishSignal
-				finish
-			rescue Exception => ex
-				log_failure("Stimuli runner", ex)
+			rescue ServiceSkeleton::BackgroundWorker.const_get(:TerminateBackgroundThread) => ex
+				@threads.list.each { |th| th.raise(ex.class) }
+				raise
+			rescue StandardError => ex
+				log_exception(ex) { "Mysterious exception while running stimulus listener for #{method.name}" }
 			end
 		end
 	end
 
-	# Signal the stimulus to immediately shut down everything.
+	# Gracefully stop all stimuli workers.
 	#
-	# This will cause all stimulus processing threads to be terminated
-	# immediately.  You probably want to use {#finish} instead, normally.
-	#
-	def stop
-		@thread_group.list.each do |th|
-			th.raise Brown::StopSignal.new("stimulus thread_group")
+	def shutdown
+		logger.info(progname) { "shutting down" }
+		@running = false
+
+		logger.debug(progname) { "waiting for #{@threads.list.length} stimuli workers to finish" } unless @threads.list.empty?
+
+		until @threads.list.empty? do
+			@threads.list.first.join
 		end
 
-		finish
-	end
-
-	# Stop the stimulus listener, and wait gracefull for all currently
-	# in-progress stimuli processing to finish before returning.
-	#
-	def finish
-		if @runner_thread and @runner_thread != Thread.current
-			@runner_thread.raise(Brown::StopSignal.new("stimulus loop"))
-		end
-		@runner_thread = nil
-
-		@thread_group.list.each { |th| th.join }
+		logger.info(progname) { "shutdown complete." }
 	end
 
 	private
 
+	attr_reader :logger
+
+	def progname
+		@progname ||= "StimulusWorker->#{method.name}"
+	end
+
 	# Process a single stimulus event.
 	#
 	def process(*args)
-		instance = agent_class.new
-
-		if instance.method(method_name).arity == 0
-			instance.__send__(method_name)
+		logger.debug(progname) { "Processing stimulus.  Arguments: #{args.inspect}" }
+		if method.arity == 0
+			method.call
 		else
-			instance.__send__(method_name, *args)
+			method.call(*args)
 		end
 	end
 
 	# Fire off a new thread to process a single stimulus event.
 	#
 	def spawn_worker(*args)
-		@thread_group.add(
-			Thread.new(args) do |args|
-				begin
-					process(*args)
-				rescue Brown::StopSignal, Brown::FinishSignal
-					# We're OK with this; the thread will now
-					# quietly die.
-				rescue Exception => ex
-					log_failure("Stimulus worker", ex)
-				end
-			end
-		)
-	end
+		@threads.add(Thread.new(args) do |args|
+			logger.debug(progname) { "Spawned new worker" }
 
-	# Standard log formatting for caught exceptions.
-	#
-	def log_failure(what, ex)
-		@logger.error { "#{what} failed: #{ex.message} (#{ex.class})" }
-		@logger.info  { ex.backtrace.map { |l| "    #{l}" }.join("\n") }
+			begin
+				process(*args)
+			rescue StandardError => ex
+				log_exception(ex) { "Stimulus worker raised exception" }
+			end
+		end)
 	end
 end

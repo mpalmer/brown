@@ -2,98 +2,35 @@
 
 # Run an agent.  Any agent.
 
-require 'envied'
-require 'logger'
+require "brown"
 
-envied_config = (ENVied.config || ENVied::Configuration.new).tap do |cfg|
-	cfg.enable_defaults!
-	cfg.variable :AMQP_URL, :string, :default => "amqp://localhost"
-	cfg.variable :BROWN_LOG_LEVEL, :string, :default => "info"
+unless ARGV.length == 1
+  $stderr.puts "Must specify a single agent file to load."
+  exit 1
 end
 
-ENVied.require(:default, :config => envied_config)
-
-ARGV.each { |f| require f }
+require ARGV.first
 
 agent_classes = ObjectSpace.each_object(Class).select do |k|
 	k != Brown::Agent and k.ancestors.include?(Brown::Agent)
 end
 
-Brown::Agent.logger = Logger.new($stderr)
-Brown::Agent.logger.level = Logger.const_get(ENVied.BROWN_LOG_LEVEL.upcase.to_sym)
-Brown::Agent.logger.formatter = proc { |s,dt,n,msg| "#{$$}-#{Thread.current.object_id} [#{s[0]}] #{msg}\n" }
-
-agents = []
-
-def stop_agents(agents)
-	agents.each do |th|
-		Brown::Agent.logger.debug { "Stopping agent #{th[:agent_class].inspect} (thread #{th.inspect})" }
-		th[:agent_class] && th[:agent_class].stop
-	end
+if agent_classes.length > 1
+  $stderr.puts "Multiple subclasses of Brown::Agent found.  I don't know what to run."
+  exit 1
+elsif
+  agent_classes.length == 0
+  $stderr.puts "No subclass of Brown::Agent found.  I don't have anything to run."
+  exit 1
 end
 
-Signal.trap("INT") do
-	$stderr.puts "Received SIGINT; stopping agents and exiting"
-	stop_agents(agents)
+agent_class = agent_classes.first
+
+$0 = "brown: #{agent_class.to_s}"
+
+begin
+  agent_class.new(ENV).start
+rescue ServiceSkeleton::Error::InvalidEnvironmentError => ex
+  $stderr.puts "Configuration error: #{ex.message}"
+  exit 1
 end
-Signal.trap("TERM") do
-	$stderr.puts "Received SIGTERM; stopping agents and exiting"
-	stop_agents(agents)
-end
-Signal.trap("HUP", "IGNORE")
-Signal.trap("USR1") do
-	Brown::Agent.more_log_detail
-	$stderr.puts "Log level now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}"
-end
-Signal.trap("USR2") do
-	Brown::Agent.less_log_detail
-	$stderr.puts "Log level now #{Logger::SEV_LABEL[Brown::Agent.logger.level]}"
-end
-
-Brown::Agent.logger.info { "Brown starting up..." }
-
-agent_classes.each do |klass|
-	th = Thread.new(klass) do |klass|
-		Thread.current[:agent_class] = klass
-		klass.run
-	end
-
-	agents << th
-
-	Brown::Agent.logger.info { "Started agent #{klass}" }
-	Brown::Agent.logger.debug { "Agent thread is #{th.inspect}" }
-end
-
-loop do
-	if agents.empty?
-		break
-	end
-
-	sleep 0.5
-
-	agents.each do |th|
-		Brown::Agent.logger.debug { "Examining agent thread #{th.inspect}" }
-		begin
-			if th.join(0.5)
-				Brown::Agent.logger.info { "Agent #{th[:agent_class]} exited cleanly; not restarting" }
-				agents.delete(th)
-			end
-		rescue Exception => ex
-			Brown::Agent.logger.fatal { "Agent #{th[:agent_class]} crashed: #{ex.message} (#{ex.class})" }
-			Brown::Agent.logger.info { ex.backtrace.map { |l| "  #{l}" }.join("\n") }
-
-			Brown::Agent.logger.info { "Re-starting #{klass} agent" }
-
-			klass = th[:agent_class]
-			agents.delete(th)
-
-			agents << Thread.new(klass) do |klass|
-				Thread.current[:agent_class] = klass
-				klass.run
-			end
-		end
-
-	end
-end
-
-Brown::Agent.logger.info { "Brown exiting" }

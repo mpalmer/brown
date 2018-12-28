@@ -24,14 +24,14 @@ Gem::Specification.new do |s|
 	s.required_ruby_version = ">= 2.1.0"
 
 	s.add_runtime_dependency "bunny", "~> 1.7"
-	s.add_runtime_dependency "envied", "~> 0.8"
+  s.add_runtime_dependency "service_skeleton", "~> 0.a"
 
 	s.add_development_dependency 'bundler'
+  s.add_development_dependency 'git-version-bump'
 	s.add_development_dependency 'github-release'
-	s.add_development_dependency 'guard-spork'
 	s.add_development_dependency 'guard-rspec'
 	s.add_development_dependency 'pry-byebug'
-	s.add_development_dependency 'rake', '~> 10.4', '>= 10.4.2'
+	s.add_development_dependency 'rake', '>= 10.4.2'
 	# Needed for guard
 	s.add_development_dependency 'rb-inotify', '~> 0.9'
 	s.add_development_dependency 'redcarpet'

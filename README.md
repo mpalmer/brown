@@ -21,7 +21,7 @@ There's also the wonders of [the Gemfile](http://bundler.io):
 
 If you're the sturdy type that likes to run from git:
 
-    rake build; gem install pkg/brown-<whatever>.gem
+    rake install
 
 Or, if you've eschewed the convenience of Rubygems entirely, then you
 presumably know what to do already.
@@ -31,11 +31,10 @@ presumably know what to do already.
 
 To make something an agent, you simply create a subclass of `Brown::Agent`.
 You can then use a simple DSL to define "stimuli", each of which (when
-triggered) cause a new instance of the class to be instantiated and a method
-(specified by the stimulus) to be invoked in a separate thread.  You can do
-arbitrary things to detect stimuli, however there are a number of
-pre-defined stimuli you can use to do standard things, like run something
-periodically, or process a message on an AMQP queue.
+triggered) cause a new thread to be created, to call the handler method for
+that stimulus.  You can do arbitrary things to detect stimuli, however there
+are a number of pre-defined stimuli you can use to do standard things, like run
+something periodically, or process a message on an AMQP queue.
 
 As a very simple example, say you wanted to print `foo` every five seconds.
 (Yes, you *could* do this in a loop, but humour me, would you?)  Using the
@@ -47,7 +46,7 @@ built-in `every` stimuli, you could do it like this:
       end
     end
 
-    FooTicker.run
+    FooTicker.new({}).run
 
 To demonstrate that each trip of the timer runs in a separate thread, you
 could extend this a little:
@@ -58,7 +57,7 @@ could extend this a little:
       end
     end
 
-    FooTicker.run
+    FooTicker.new({}).run
 
 Every five seconds, it should print out a different `FooTicker` and `Thread`
 object.
@@ -77,7 +76,7 @@ this directly using the generic method, `stimulate`:
       end
     end
 
-    FooTicker.run
+    FooTicker.new({}).run
 
 What a `stimulate` declaration says is, quite simply:
 
@@ -90,25 +89,27 @@ You can pass arguments to the agent method call, by giving them to
 `worker.call`.
 
 
-## Agent-wide common variables
+## Sharing variables via memos
 
-There is some state you will want to keep across the entire agent.  For
-this, Brown provides the concept of "memos".  These are persistent objects,
-which you access via a class or instance method.  To declare them, you
-simply do:
+There is some state you will want to keep for the lifetime of the agent.
+Because all stimulus processing happens in multiple threads, there is a helper
+available to try and prevent concurrent access to mutable state -- the concept
+of "memos".  These are persistent objects, which you access only in a block,
+and which wraps your access in a mutex.
+
+To declare them, you simply do:
 
     class MemoUser < Brown::Agent
       memo(:foo) { Foo.new }
     end
 
-The way this works is that the memo defines a method (both class and
-instance) which, the first time you run it, runs the provided block to
-create the memo object.  Thereafter, that cached object is provided to the
-caller of the memo method.
+The way this works is that the memo defines an instance method which, the first
+time you run it, runs the provided block to create the memo object, which is
+then cached.  Thereafter, that cached object is provided, which can be mutated
+(though not replaced) safely.
 
-Because of Brown's multi-threaded nature, memos come with a built-in mutex
-to prevent concurrent usage.  That means that every time you want to access
-the memo, you must do so inside a block:
+To acquire the lock, and run some code that requires the memoised object, you
+pass a block to the memo method, which gets the object passed into it, like this:
 
     class MemoUser < Brown::Agent
       memo(:foo) { Foo.new }
@@ -120,6 +121,10 @@ the memo, you must do so inside a block:
       end
     end
 
+Here you can see that the instance of `Foo` gets passed into the block given to
+the call to `foo`, and then the `Foo#frob` method can be called safe in the
+knowledge that nobody else is frobbing the foo at the same time.
+
 The crucial thing to note here is that you *only have the memo lock inside
 the block*.  If you were to capture the memo object into a variable outside
 the block, and then use it (read *or* write) outside the block, Really Bad
@@ -129,7 +134,8 @@ When you have multiple memos, it is entirely possible that you can end up
 deadlocking your agent by acquiring the locks for various memos in different
 orders.  Those dining philosophers are always getting themselves in a
 muddle.  To prevent this problem, it is highly recommended that you always
-acquire the locks for your memos in the order they are written in the class
+acquire the locks for your memos in the same order -- by convention, the
+"correct" order to access memos is the order they are placed in the class
 definition:
 
     class MemoUser < Brown::Agent
@@ -144,8 +150,7 @@ definition:
       end
 
       every(6) do
-        # Acquiring a single lock, even if it is later in the
-        # list, is fine
+        # Acquiring a single lock, even a different one, is fine
         bar do |b|
           b.baznicate(b)
         end
@@ -160,9 +165,9 @@ definition:
         end
       end
 
-      every(7) do
-        # This is THE WRONG WAY AROUND.  DO NOT DO THIS!
-        # YOU WILL GET DEADLOCKS!
+      every(8) do
+        # This is the WRONG WAY AROUND.  DO NOT DO THIS!
+        # YOU WILL GET DEADLOCKS SOONER OR LATER!
         bar do |b|
           foo do |f|
             b.baznicate(f)
@@ -188,6 +193,7 @@ of the memo object:
 
       every(60) do
         now do |t|
+          # This will not change the value of the memo object
           t = Time.now
         end
       end
@@ -220,62 +226,35 @@ This example code will print the same time for a minute, before changing to
 a new minute.
 
 
-### Thread-safe memos
-
-There are some classes which are themselves thread-safe -- usually because
-the class author has gone to some trouble to provide zer own, more
-fine-grained, locking on the data within the object.  If you are *quite
-sure* you have such a thread-safe object to memoise, you can use
-{Brown::Agent::ClassMethods.safe_memo} for that purpose:
-
-    class SafeMemoUser < Brown::Agent
-      safe_memo(:foo) { ThreadSafeFoo.new }
-    end
-
-The benefit of this form of memos is that you don't have to access them in a
-block:
-
-    class SafeMemoUser < Brown::Agent
-      safe_memo(:foo) { ThreadSafeFoo.new }
-
-      every(10) do
-        foo.frob
-      end
-    end
-
-Like regular memos, you cannot reassign a thread-safe memo to another
-object:
-
-    class SafeMemoUser < Brown::Agent
-      safe_memo(:foo) { ThreadSafeFoo.new }
-
-      every(10) do
-        # This will explode with a NameError
-        foo = ThreadSafeFoo.new
-      end
-    end
-
-
 ## AMQP publishing / consumption
 
 Since message-based communication is a common pattern amongst cooperating
 groups of agents, Brown comes with some helpers to make using AMQP painless.
+To use these helpers, your agent class must `include Brown::Agent::AMQP`.
 
-Firstly, to publish a message, you need to declare a publisher, and then use
+
+### Publishing Messages
+
+To publish a message, you need to declare a publisher, and then use
 it somewhere.  To declare a publisher, you use the `amqp_publisher` method:
 
     class AmqpPublishingAgent < Brown::Agent
+      include Brown::Agent::AMQP
+
       amqp_publisher :foo
     end
 
 There are a number of options you can add to this call, to set the AMQP
 server URL, change the way that the AMQP exchange is declared, and a few
 other things.  For all the details on those, see the API docs for
-{Brown::Agent.amqp_publisher}.
+{Brown::Agent::AMQP.amqp_publisher}.
 
-Once you have declared a publisher, you can send messages through it:
+Once you have declared a publisher, you get a method named after the
+publisher, which you can send messages through:
 
     class AmqpPublishingAgent < Brown::Agent
+      include Brown::Agent::AMQP
+
       amqp_publisher :foo, exchange_name: :foo, exchange_type: :fanout
 
       every 5 do
@@ -284,8 +263,8 @@ Once you have declared a publisher, you can send messages through it:
     end
 
 The above example will perform the extremely important task of sending a
-message containing the body `FOO!` every five seconds, forever.  Hopefully
-you can come up with some more practical uses for this functionality.
+message containing the body `FOO!` every five seconds, forever, to the
+fanout exchange named `foo`.
 
 
 ### Consuming Messages
@@ -295,41 +274,49 @@ of code to run when a message is received.  In its simplest form, it looks
 like this:
 
     class AmqpListenerAgent < Brown::Agent
+      include Brown::Agent::AMQP
+
       amqp_listener :foo do |msg|
         logger.info "Received message: #{msg.payload}"
         msg.ack
       end
     end
 
-This example sets up a queue to receive messages send to the exchange `foo`,
-and then simply logs every message it receives.  Note the `msg.ack` call;
+This example sets up a queue to receive messages sent to the exchange `foo`,
+and then logs every message it receives.  Note the `msg.ack` call;
 this is important so that the broker knows that the message has been
 received and can send you another message.  If you forget to do this, you'll
 only ever receive one message.
 
 The `amqp_listener` method can take a *lot* of different options to
-customise how it works; you'll want to read {Brown::Agent.amqp_listener} to
+customise how it works; you'll want to read {Brown::Agent::AMQP.amqp_listener} to
 find out all about it.
 
 
 ## Running agents on the command line
 
 The easiest way to run agents "in production" is to use the `brown` command.
-Simply pass a list of files which contain subclasses of `Brown::Agent`, and
-those classes will be run in individual threads, with automatic restarting.
-Convenient, huh?
+Pass it a file which contains the definition of a subclass of `Brown::Agent`,
+and it'll fire off a new agent.  Convenient, huh?
+
+
+### Metrics, signals, and bears, oh my!
+
+Brown uses the [`service_skeleton`](https://github.com/discourse/service_skeleton) gem
+to manage agents, and so you have access to a wide variety of additional (optional)
+features, including metrics and log management.
 
 
 ## Testing
 
-Brown comes with facilities to unit test all of your agents.  Since agents
-simply receive stimuli and act on them, testing is quite simple in
-principle, but the parallelism inherent in agents can make them hard to test
-without some extra helpers.
+Brown comes with facilities to write automated tests for your agents.  Since
+agents simply receive stimuli and act on them, testing is quite simple in
+principle.  However, the inherent parallelism going on behind the scenes can
+make agents hard to test without some extra helpers.
 
 To enable the additional testing helpers, you must `require 'brown/test'`
 somewhere in your testing setup, before you define your agents.  This will
-add a bunch of extra methods, defined in {Brown::TestHelpers} to
+add a bunch of extra methods, defined in {Brown::TestHelpers}, to
 {Brown::Agent}, which you can then call to examine certain aspects of the
 agent (such as `memo?(name)` and `amqp_publisher?(name)`) as well as send
 stimuli to the agent and have it behave appropriately, which you can then
@@ -358,8 +345,10 @@ can just instantiate the agent class and call the method you want:
     end
 
     describe StimulationAgent do
+      let(:agent) { described_class.new({}) }
+
       it "does something" do
-        subject.foo
+        agent.foo
 
         expect(something).to eq(something_else)
       end
@@ -374,53 +363,63 @@ For memos, you can assert that an agent has a given memo quite easily:
     end
 
     describe MemoAgent do
+      let(:agent) { described_class.new({}) }
+
       it "has the memo" do
-        expect(MemoAgent).to have_memo(:blargh)
+        expect(agent).to have_memo(:blargh)
       end
     end
 
-Then, on top of that, you can assert the value is as you expected, because
-memos are accessable at the class level:
+Then, on top of that, you can assert the value is as you expected, with the
+`#memo_value` method:
 
     it "has the right value" do
-      expect(MemoAgent.blargh(:test)).to eq("ohai")
+      expect(agent.memo_value(:blargh)).to eq("ohai")
     end
 
 Or even put it in a let:
 
     context "value" do
-      let(:value) { MemoAgent.blargh(:test) }
+      let(:value) { agent.memo_value(:blargh) }
     end
-
-Note in the above examples that we passed the special value `:test` to the
-call to `.blargh`; that was to let it know that we're definitely testing it
-out.  Recall that, ordinarily, a memo that is declared "unsafe" can only be
-accessed inside a block passed to the memo method.  For testing purposes,
-rather than having to pass a block, we instead just pass in the special
-`:test` symbol and it'll let us get the value back.  Note that this won't
-work unless you have `require`d `'brown/test_helpers'` *before* you defined
-the agent class.
 
 Testing timers is pretty straightforward, too; just trigger away:
 
     class TimerAgent < Brown::Agent
-      every 10 do
+      every 5 do
         $stderr.puts "Tick tock"
+      end
+
+      every 10 do
+        $stderr.puts "BONG"
+      end
+
+      every 10 do
+        $stderr.puts "CRASH!"
       end
     end
 
     describe TimerAgent do
+      let(:agent) { described_class.mew({}) }
+
       it "goes off on time" do
-        expect($stderr).to receive(:info).with("Tick tock")
+        expect($stderr).to_not receive(:info).with("Tick tock")
+        expect($stderr).to receive(:info).with("BONG")
+        expect($stderr).to receive(:info).with("CRASH!")
 
         TimerAgent.trigger(10)
       end
     end
 
+Calling `#trigger` calls all of the `every` stimuli which run every number
+of seconds given.
+
 It is pretty trivial to assert that some particular message was published
 via AMQP:
 
     class PublishTimerAgent < Brown::Agent
+      include Brown::Agent::AMQP
+
       amqp_publisher :time
 
       every 86400 do
@@ -429,10 +428,12 @@ via AMQP:
     end
 
     describe PublishTimerAgent do
-      it "publishes to schedule" do
-        expect(PublishTimerAgent.time).to receive(:publish).with("One day more!")
+      let(:agent) { described_class.new({}) }
 
-        PublishTimerAgent.trigger(86400)
+      it "publishes to schedule" do
+        expect(agent.time).to receive(:publish).with("One day more!")
+
+        agent.trigger(86400)
       end
     end
 
@@ -440,6 +441,8 @@ Testing what happens when a particular message gets received isn't much
 trickier:
 
     class ReceiverAgent < Brown::Agent
+      include Brown::Agent::AMQP
+
       amqp_listener "some_exchange" do |msg|
         $stderr.puts "Message: #{msg.payload}"
         msg.ack
@@ -447,10 +450,12 @@ trickier:
     end
 
     describe ReceiverAgent do
+      let(:agent) { described_class.new({}) }
+
       it "receives the message OK" do
         expect($stderr).to receive(:puts).with("Message: ohai!")
 
-        was_acked = ReceiverAgent.amqp_receive("some_exchange", "ohai!")
+        was_acked = agent.amqp_receive("some_exchange", "ohai!")
         expect(was_acked).to be(true)
       end
     end

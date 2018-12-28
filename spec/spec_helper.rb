@@ -1,37 +1,32 @@
-require 'spork'
+require 'bundler'
+Bundler.setup(:default, :development)
+require 'rspec/core'
+require 'rspec/mocks'
+require "sigdump/setup"
 
-Spork.prefork do
-	require 'bundler'
-	Bundler.setup(:default, :development)
-	require 'rspec/core'
-	require 'rspec/mocks'
+if RUBY_VERSION =~ /^1\./
+	require 'pry-debugger'
+else
+	require 'pry-byebug'
+end
 
-	if RUBY_VERSION =~ /^1\./
-		require 'pry-debugger'
-	else
-		require 'pry-byebug'
-	end
+RSpec.configure do |config|
+	config.fail_fast = true
+#	config.full_backtrace = true
 
-	RSpec.configure do |config|
-		config.fail_fast = true
-#		config.full_backtrace = true
-
-		config.expect_with :rspec do |c|
-			c.syntax = :expect
-		end
+	config.expect_with :rspec do |c|
+		c.syntax = :expect
 	end
 end
 
-Spork.each_run do
-	require_relative 'example_methods'
-	require_relative 'example_group_methods'
+require_relative 'example_methods'
+require_relative 'example_group_methods'
 
-	RSpec.configure do |config|
-		config.order = :random
+RSpec.configure do |config|
+	config.order = :random
 
-		config.include ExampleMethods
-		config.extend  ExampleGroupMethods
-	end
-
-	require 'brown'
+	config.include ExampleMethods
+	config.extend  ExampleGroupMethods
 end
+
+require 'brown'

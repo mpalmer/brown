@@ -2,38 +2,24 @@ require_relative 'spec_helper'
 
 describe "Brown::Agent.memo" do
 	class VarAgent < Brown::Agent; end
-	VarAgent.safe_memo(:foo) { rand(1000000) }
-	VarAgent.memo(:locked)   { 42 }
+	VarAgent.memo(:locked) { 42 }
 
-	it "is only evaluated once even when called multiple times" do
-		i = VarAgent.new
-		val = i.foo
-		expect(i.foo).to eq(val)
-	end
-
-	it "is only evaluated once even with multiple instances" do
-		val = VarAgent.new.foo
-		expect(VarAgent.new.foo).to eq(val)
-	end
-
-	it "is accessable in a block" do
-		expected = VarAgent.new.foo
-		val = nil
-		VarAgent.new.foo { |v| val = v }
-
-		expect(val).to eq(expected)
-	end
-
-	it "is accessible on the class" do
-		expect(VarAgent.foo).to be_an(Integer)
-	end
-
-	it "returns the same value on the class and instance" do
-		val = VarAgent.new.foo
-		expect(VarAgent.foo).to eq(val)
-	end
+	let(:agent) { VarAgent.new({}) }
 
 	it "throws a tanty if we try to access an unsafe memo" do
-		expect { VarAgent.new.locked }.to raise_error(RuntimeError)
+		expect { agent.locked }.to raise_error(RuntimeError)
+	end
+
+	it "is OK to access via a block" do
+		actual = nil
+
+		agent.locked do |val|
+			# Capture in here, but do the expectation outside, to catch the situation
+			# where the block doesn't run, which -- if we were doing the expect
+			# inside the block -- would erroneously pass.
+			actual = val
+		end
+
+		expect(actual).to eq(42)
 	end
 end
