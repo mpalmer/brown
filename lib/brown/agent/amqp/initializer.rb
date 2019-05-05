@@ -61,7 +61,7 @@ module Brown::Agent::AMQP::Initializer
 					end
 
 					logger.debug(logloc) { "stimuli_proc for #{listener[:queue_name]} having a snooze" }
-					while consumer && consumer.status == :open do
+					while consumer&.channel&.status == :open do
 						sleep
 					end
 				end
