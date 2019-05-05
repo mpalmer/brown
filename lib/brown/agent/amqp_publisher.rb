@@ -34,15 +34,8 @@ class Brown::Agent::AMQPPublisher
 	# Setup an exchange in the AMQP broker, and allow the publishing of
 	# messages to that exchange.
 	#
-	# @param amqp_url [#to_s] the AMQP broker to connect to, specified as a
-	#   URL.  The scheme must be `amqp`.  Username and password should be
-	#   given in the standard fashion (`amqp://<user>:<pass>@<host>`).
-	#
-	#   The path portion of AMQP URLs is totes spesh; if you want to
-	#   connect to the default vhost (`/`) you either need to specify *no*
-	#   trailing slash (ie `amqp://hostname`) or percent-encode the `/`
-	#   vhost name (ie `amqp://hostname/%2F`).  Yes, this drives me nuts,
-	#   too.
+	# @param amqp_session [Bunny::Session] an active session with the AMQP
+	#   server.  Typically this will be the agent's `@amqp_session` variable.
 	#
 	# @param exchange_type [Symbol] the type of exchange to create or publish
 	#   to.  By default, the exchange is created as a *direct* exchange; this
@@ -88,7 +81,7 @@ class Brown::Agent::AMQPPublisher
 	#   create the exchange fails for some reason (such as the exchange
 	#   already existing with a different configuration).
 	#
-	def initialize(amqp_url:      "amqp://localhost",
+	def initialize(amqp_session:,
 	               exchange_type: :direct,
 	               exchange_name: "",
 	               routing_key:   nil,
@@ -96,21 +89,7 @@ class Brown::Agent::AMQPPublisher
 	               logger:        Logger.new("/dev/null"),
 	               **amqp_opts
 	              )
-		begin
-			@amqp_session = Bunny.new(amqp_url, logger: logger)
-			@amqp_session.start
-		rescue Bunny::TCPConnectionFailed
-			raise BrokerError,
-			      "Failed to connect to #{amqp_url}"
-		rescue Bunny::PossibleAuthenticationFailureError
-			raise BrokerError,
-			      "Authentication failed for #{amqp_url}"
-		rescue StandardError => ex
-			raise Error,
-			      "Unknown error occured: #{ex.message} (#{ex.class})"
-		end
-
-		@amqp_channel = @amqp_session.create_channel
+		@amqp_channel = amqp_session.create_channel
 
 		begin
 			@amqp_exchange = @amqp_channel.exchange(

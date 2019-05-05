@@ -44,9 +44,9 @@ module Brown::Agent::ClassMethods
 		@stimuli ||= []
 
 		@stimuli << {
-									method_name:  method_name,
-									stimuli_proc: blk,
-								}
+			method_name:  method_name,
+			stimuli_proc: blk,
+		}
 	end
 
 	# Define a "memo" for this agent.

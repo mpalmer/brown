@@ -14,26 +14,41 @@ module Brown::Agent::AMQP::Initializer
 			end
 		end
 
+		initialize_connection
 		initialize_publishers
 		initialize_listeners
 	end
 
+	def shutdown
+		@amqp_session.close
+
+		super
+	end
+
 	private
+
+	def initialize_connection
+		logger.debug(logloc) { "Initializing AMQP session" }
+		@amqp_session = Bunny.new(config.amqp_url, recover_from_connection_close: true)
+		@amqp_session.start
+	end
 
 	def initialize_publishers
 		(self.class.amqp_publishers || []).each do |publisher|
+			logger.debug(logloc) { "Initializing AMQP publisher #{publisher}" }
 			opts = { exchange_name: publisher[:name] }.merge(publisher[:opts])
 
 			define_singleton_method(publisher[:name]) do
 				iv = :"@#{publisher[:name]}"
 				# It's memoisation, Jim, but not as *we* know it
-				instance_variable_get(iv) || instance_variable_set(iv, Brown::Agent::AMQPPublisher.new(opts))
+				instance_variable_get(iv) || instance_variable_set(iv, Brown::Agent::AMQPPublisher.new(amqp_session: @amqp_session, **opts))
 			end
 		end
 	end
 
 	def initialize_listeners
 		(self.class.amqp_listeners || []).each do |listener|
+			logger.debug(logloc) { "Initializing AMQP listener #{listener}" }
 			worker_method = "amqp_listener_worker_#{SecureRandom.uuid}".to_sym
 			define_singleton_method(worker_method, listener[:callback])
 
@@ -41,8 +56,13 @@ module Brown::Agent::AMQP::Initializer
 			@stimuli << {
 				method: method(worker_method),
 				stimuli_proc: proc do |worker|
-					queue(listener).subscribe(manual_ack: true, block: true) do |di, prop, payload|
+					consumer = queue(listener).subscribe(manual_ack: true) do |di, prop, payload|
 						worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
+					end
+
+					logger.debug(logloc) { "stimuli_proc for #{listener[:queue_name]} having a snooze" }
+					while consumer && consumer.status == :open do
+						sleep
 					end
 				end
 			}
@@ -52,32 +72,20 @@ module Brown::Agent::AMQP::Initializer
 	def queue(listener)
 		@queue_cache ||= {}
 		@queue_cache[listener] ||= begin
-			amqp = Bunny.new(listener[:amqp_url], logger: logger)
-			amqp.start
-
 			bind_queue(
-				amqp_session:  amqp,
 				queue_name:    listener[:queue_name],
 				exchange_list: listener[:exchange_list],
 				concurrency:   listener[:concurrency],
 			)
-		rescue Bunny::TCPConnectionFailed
-			logger.error(logloc) { "Failed to connect to #{listener[:amqp_url]}" }
-			sleep 5
-			retry
-		rescue Bunny::PossibleAuthenticationFailureError
-			logger.error(logloc) { "Authentication failure for #{listener[:amqp_url]}" }
-			sleep 5
-			retry
 		rescue StandardError => ex
-			log_exception(ex) { "Unknown error while trying to connect to #{listener[:amqp_url]}" }
+			log_exception(ex) { "Unknown error while binding queue #{listener[:queue_name].inspect} to exchange list #{listener[:exchange_list].inspect}" }
 			sleep 5
 			retry
 		end
 	end
 
-	def bind_queue(amqp_session:, queue_name:, exchange_list:, concurrency:)
-		ch = amqp_session.create_channel
+	def bind_queue(queue_name:, exchange_list:, concurrency:)
+		ch = @amqp_session.create_channel
 		ch.prefetch(concurrency)
 
 		ch.queue(queue_name, durable: true).tap do |q|
@@ -89,7 +97,6 @@ module Brown::Agent::AMQP::Initializer
 						logger.error { "bind failed: #{ex.message}" }
 						sleep 5
 						return bind_queue(
-						       amqp_session: amqp_session,
 						       queue_name: queue_name,
 						       exchange_list: exchange_list,
 						       concurrency: concurrency

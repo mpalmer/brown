@@ -15,22 +15,24 @@ describe "Brown::Agent.amqp_listener" do
 
 	before :each do
 		allow(Bunny)
-		  .to receive(:new)
-		  .and_return(session_mock)
+			.to receive(:new)
+			.and_return(session_mock)
 		allow(session_mock)
-		  .to receive(:start)
+			.to receive(:start)
 		allow(session_mock)
-		  .to receive(:create_channel)
-		  .and_return(channel_mock)
+			.to receive(:close)
+		allow(session_mock)
+			.to receive(:create_channel)
+			.and_return(channel_mock)
 		allow(channel_mock)
-		  .to receive(:queue)
-		  .and_return(queue_mock)
+			.to receive(:queue)
+			.and_return(queue_mock)
 		allow(channel_mock)
-		  .to receive(:prefetch)
+			.to receive(:prefetch)
 		allow(queue_mock)
-		  .to receive(:bind)
+			.to receive(:bind)
 		allow(queue_mock)
-		  .to receive(:subscribe) { agent.stop }
+			.to receive(:subscribe)
 	end
 
 	let(:agent_class) do
@@ -39,21 +41,13 @@ describe "Brown::Agent.amqp_listener" do
 		end
 	end
 
-	let(:agent) { agent_class.new({}) }
+	let(:agent) { agent_class.new("AMQP_URL" => "amqp://bob:s3kr1t@localhost") }
 
 	context "with no arguments" do
 		before(:each) do
 			agent_class.amqp_listener do
 				# NOTHING!
 			end
-		end
-
-		it "creates a Bunny session object" do
-			expect(Bunny)
-			  .to receive(:new)
-			  .and_return(session_mock)
-
-			tickle(agent)
 		end
 
 		it "starts the session" do
@@ -98,7 +92,7 @@ describe "Brown::Agent.amqp_listener" do
 		it "subscribes to the queue" do
 			expect(queue_mock)
 			  .to receive(:subscribe)
-				.with(manual_ack: true, block: true) { agent.stop }
+				.with(manual_ack: true)
 
 			tickle(agent)
 		end
@@ -157,22 +151,6 @@ describe "Brown::Agent.amqp_listener" do
 		end
 	end
 
-	context "with a different amqp_url" do
-		before(:each) do
-			agent_class.amqp_listener amqp_url: "amqp://example.com" do
-				# NOTHING!
-			end
-		end
-
-		it "creates a session with the special URL" do
-			expect(Bunny)
-			  .to receive(:new)
-			  .with("amqp://example.com", logger: logger)
-
-			tickle(agent)
-		end
-	end
-
 	context "with a non-default concurrency" do
 		before(:each) do
 			agent_class.amqp_listener concurrency: 42 do
@@ -184,74 +162,6 @@ describe "Brown::Agent.amqp_listener" do
 			expect(channel_mock)
 			  .to receive(:prefetch)
 			  .with(42)
-
-			tickle(agent)
-		end
-	end
-
-	context "with a failed connection" do
-		before(:each) do
-			agent_class.amqp_listener do
-				# NOTHING!
-			end
-
-			allow(agent)
-				.to receive(:sleep)
-			allow(logger)
-			  .to receive(:error)
-			expect(session_mock)
-			  .to receive(:start)
-			  .and_raise(Bunny::TCPConnectionFailedForAllHosts)
-		end
-
-		it "logs an error" do
-			expect(logger).to receive(:error) do |&blk|
-				expect(blk.call).to match(/Failed to connect.*localhost/)
-			end
-
-			tickle(agent)
-		end
-
-		it "sleeps for a bit then retries" do
-			expect(agent)
-				.to receive(:sleep)
-				.with(5)
-			expect(session_mock)
-			  .to receive(:start)
-
-			tickle(agent)
-		end
-	end
-
-	context "with failed authentication" do
-		before(:each) do
-			agent_class.amqp_listener do
-				# NOTHING!
-			end
-
-			allow(agent)
-			  .to receive(:sleep)
-			allow(logger)
-			  .to receive(:error)
-			expect(session_mock)
-			  .to receive(:start)
-			  .and_raise(Bunny::AuthenticationFailureError.new('', '', 0))
-		end
-
-		it "logs an error" do
-			expect(logger).to receive(:error) do |&blk|
-				expect(blk.call).to match(/authentication.*localhost/i)
-			end
-
-			tickle(agent)
-		end
-
-		it "sleeps for a bit then retries" do
-			expect(agent)
-			  .to receive(:sleep)
-			  .with(5)
-			expect(session_mock)
-			  .to receive(:start)
 
 			tickle(agent)
 		end
@@ -303,7 +213,7 @@ describe "Brown::Agent.amqp_listener" do
 			  .to receive(:bind)
 			  .with("unknown_exchange")
 			expect(new_queue_mock)
-			  .to receive(:subscribe) { agent.stop }
+			  .to receive(:subscribe)
 
 			tickle(agent)
 		end

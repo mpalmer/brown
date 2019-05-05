@@ -22,7 +22,7 @@ describe "Brown::Agent::AMQPPublisher#publish" do
 	let(:message)   { "Climb Mount Shiitaki" }
 
 	context "default publisher" do
-		let(:publisher) { Brown::Agent::AMQPPublisher.new }
+		let(:publisher) { Brown::Agent::AMQPPublisher.new(amqp_session: session_mock) }
 
 		before :each do
 			allow(exchange_mock)
@@ -78,7 +78,7 @@ describe "Brown::Agent::AMQPPublisher#publish" do
 	end
 
 	context "publisher with a routing key" do
-		let(:publisher) { Brown::Agent::AMQPPublisher.new(routing_key: "foo") }
+		let(:publisher) { Brown::Agent::AMQPPublisher.new(amqp_session: session_mock, routing_key: "foo") }
 
 		before :each do
 			allow(exchange_mock)
@@ -124,7 +124,7 @@ describe "Brown::Agent::AMQPPublisher#publish" do
 	end
 
 	context "publisher with a default message type" do
-		let(:publisher) { Brown::Agent::AMQPPublisher.new(message_type: "bar") }
+		let(:publisher) { Brown::Agent::AMQPPublisher.new(amqp_session: session_mock, message_type: "bar") }
 
 		before :each do
 			allow(exchange_mock)
@@ -162,7 +162,7 @@ describe "Brown::Agent::AMQPPublisher#publish" do
 
 	context "publisher with a different exchange name" do
 		let(:publisher) do
-			Brown::Agent::AMQPPublisher.new(exchange_name: "wombat")
+			Brown::Agent::AMQPPublisher.new(amqp_session: session_mock, exchange_name: "wombat")
 		end
 
 		before :each do
@@ -184,6 +184,7 @@ describe "Brown::Agent::AMQPPublisher#publish" do
 	context "publisher with custom AMQP options" do
 		let(:publisher) do
 			Brown::Agent::AMQPPublisher.new(
+			                amqp_session: session_mock,
 			                routing_key: "foo",
 			                persistent: true,
 			                content_type: "text/plain"

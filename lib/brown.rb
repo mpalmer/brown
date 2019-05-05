@@ -13,6 +13,7 @@ module Brown
 end
 
 require_relative 'brown/agent'
+require_relative 'brown/agent/amqp'
 require_relative 'brown/agent/amqp_message'
 require_relative 'brown/agent/amqp_publisher'
 require_relative 'brown/agent/memo'

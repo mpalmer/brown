@@ -34,6 +34,7 @@ class Brown::Agent::Stimulus
 	#   If left as the default, no logging will be done.
 	#
 	def initialize(method:, stimuli_proc:, logger: Logger.new("/dev/null"))
+		puts caller if method.nil?
 		@method       = method
 		@stimuli_proc = stimuli_proc
 		@threads      = ThreadGroup.new
@@ -58,19 +59,25 @@ class Brown::Agent::Stimulus
 			stimuli_proc.call(->(*args) { process(*args) })
 		else
 			@running = true
-			begin
-				while @running
-					begin
-						stimuli_proc.call(->(*args) { spawn_worker(*args) })
-					rescue StandardError => ex
-						log_exception(ex) { "Stimuli listener proc raised exception" }
+			logger.debug(logloc) { "Running stimulus listener for stimulus proc at #{@method.source_location.join(":")}" }
+			Thread.handle_interrupt(Exception => :never) do
+				begin
+					while @running
+						begin
+							logger.debug(logloc) { "Calling stimulus_proc" }
+							Thread.handle_interrupt(Exception => :immediate) do
+								stimuli_proc.call(->(*args) { spawn_worker(*args) })
+							end
+						rescue StandardError => ex
+							log_exception(ex) { "Stimuli listener proc raised exception" }
+						end
 					end
+				rescue ServiceSkeleton::BackgroundWorker.const_get(:TerminateBackgroundThread) => ex
+					@threads.list.each { |th| th.raise(ex.class) }
+					raise unless Thread.current == @bg_worker_thread
+				rescue StandardError => ex
+					log_exception(ex) { "Mysterious exception while running stimulus listener for #{method.name}" }
 				end
-			rescue ServiceSkeleton::BackgroundWorker.const_get(:TerminateBackgroundThread) => ex
-				@threads.list.each { |th| th.raise(ex.class) }
-				raise
-			rescue StandardError => ex
-				log_exception(ex) { "Mysterious exception while running stimulus listener for #{method.name}" }
 			end
 		end
 	end
@@ -81,11 +88,14 @@ class Brown::Agent::Stimulus
 		logger.info(progname) { "shutting down" }
 		@running = false
 
-		logger.debug(progname) { "waiting for #{@threads.list.length} stimuli workers to finish" } unless @threads.list.empty?
+		logger.debug(progname) { "waiting for #{@threads.list.length} stimuli worker(s) to finish" }
 
 		until @threads.list.empty? do
 			@threads.list.first.join
 		end
+
+		logger.debug(progname) { "terminating stimulus listener" }
+		super
 
 		logger.info(progname) { "shutdown complete." }
 	end
@@ -95,7 +105,7 @@ class Brown::Agent::Stimulus
 	attr_reader :logger
 
 	def progname
-		@progname ||= "StimulusWorker->#{method.name}"
+		@progname ||= "StimulusWorker->#{method.name rescue nil}"
 	end
 
 	# Process a single stimulus event.

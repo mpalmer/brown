@@ -6,11 +6,6 @@ describe "Brown::Agent::AMQPPublisher.new" do
 	let(:exchange_mock) { instance_double(Bunny::Exchange) }
 
 	before :each do
-		allow(Bunny)
-		  .to receive(:new)
-		  .and_return(session_mock)
-		allow(session_mock)
-		  .to receive(:start)
 		allow(session_mock)
 		  .to receive(:create_channel)
 		  .and_return(channel_mock)
@@ -20,25 +15,14 @@ describe "Brown::Agent::AMQPPublisher.new" do
 	end
 
 	context "with all defaults" do
-		it "passes the correct (default) URL" do
-			expect(Bunny)
-			  .to receive(:new)
-			  .with("amqp://localhost", logger: instance_of(Logger))
-			  .and_return(session_mock)
-
-			Brown::Agent::AMQPPublisher.new
-		end
-
 		it "starts the session" do
-			expect(session_mock).to receive(:start)
-
-			Brown::Agent::AMQPPublisher.new
+			Brown::Agent::AMQPPublisher.new(amqp_session: session_mock)
 		end
 
 		it "creates a channel" do
 			expect(session_mock).to receive(:create_channel)
 
-			Brown::Agent::AMQPPublisher.new
+			Brown::Agent::AMQPPublisher.new(amqp_session: session_mock)
 		end
 
 		it "creates an exchange" do
@@ -47,20 +31,7 @@ describe "Brown::Agent::AMQPPublisher.new" do
 			  .with("", :type => :direct, :durable => true)
 			  .and_return(exchange_mock)
 
-			Brown::Agent::AMQPPublisher.new
-		end
-	end
-
-	context "with custom AMQP URL" do
-		it "passes the custom URL" do
-			expect(Bunny)
-			  .to receive(:new)
-			  .with("amqp://foo:s3kr1t@bar.example.com", logger: instance_of(Logger))
-			  .and_return(session_mock)
-
-			Brown::Agent::AMQPPublisher.new(
-			  amqp_url: "amqp://foo:s3kr1t@bar.example.com"
-			)
+			Brown::Agent::AMQPPublisher.new(amqp_session: session_mock)
 		end
 	end
 
@@ -72,7 +43,8 @@ describe "Brown::Agent::AMQPPublisher.new" do
 			  .and_return(exchange_mock)
 
 			Brown::Agent::AMQPPublisher.new(
-			  exchange_name: "my.crazy.exchange"
+				amqp_session: session_mock,
+				exchange_name: "my.crazy.exchange"
 			)
 		end
 	end
@@ -85,39 +57,10 @@ describe "Brown::Agent::AMQPPublisher.new" do
 			  .and_return(exchange_mock)
 
 			Brown::Agent::AMQPPublisher.new(
+			  amqp_session: session_mock,
 			  exchange_name: "my.crazy.exchange",
 			  exchange_type: :fanout
 			)
-		end
-	end
-
-	context "with a failed connection" do
-		it "raises an appropriate error" do
-			expect(session_mock)
-			  .to receive(:start)
-			  .and_raise(Bunny::TCPConnectionFailedForAllHosts)
-
-			expect do
-				Brown::Agent::AMQPPublisher.new
-			end.to raise_error(
-			         Brown::Agent::AMQPPublisher::BrokerError,
-			         /localhost/
-			       )
-		end
-	end
-
-	context "with failed authentication" do
-		it "raises an appropriate error" do
-			expect(session_mock)
-			  .to receive(:start)
-			  .and_raise(Bunny::AuthenticationFailureError.new('', '', 0))
-
-			expect do
-				Brown::Agent::AMQPPublisher.new
-			end.to raise_error(
-			         Brown::Agent::AMQPPublisher::BrokerError,
-			         /authentication.*localhost/i
-			       )
 		end
 	end
 
@@ -134,7 +77,7 @@ describe "Brown::Agent::AMQPPublisher.new" do
 			   )
 
 			expect do
-				Brown::Agent::AMQPPublisher.new
+				Brown::Agent::AMQPPublisher.new(amqp_session: session_mock)
 			end.to raise_error(
 			         Brown::Agent::AMQPPublisher::ExchangeError,
 			         /Failed to open exchange: something bad happened/

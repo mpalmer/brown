@@ -1,5 +1,3 @@
-require "securerandom"
-
 # AMQP support for Brown agents.
 #
 # Including this module in your agent provides support for publishing and
@@ -12,6 +10,7 @@ module Brown::Agent::AMQP
 	private
 
 	def self.included(mod)
+		mod.string :AMQP_URL
 		mod.prepend(Brown::Agent::AMQP::Initializer)
 		mod.extend(Brown::Agent::AMQP::ClassMethods)
 	end

@@ -5,7 +5,10 @@ describe "Brown::Agent.stimulate" do
 	context "with a single 'foo' stimulus" do
 		let(:test_proc)   { ->() { nil } }
 		let(:agent_class) do
-			Class.new(Brown::Agent).tap { |k| k.stimulate(:foo, &test_proc) }
+			Class.new(Brown::Agent).tap do |k|
+				k.__send__(:define_method, :foo) {}
+				k.stimulate(:foo, &test_proc)
+			end
 		end
 
 		it "adds a stimulus" do

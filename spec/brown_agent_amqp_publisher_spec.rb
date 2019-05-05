@@ -11,19 +11,19 @@ describe "Brown::Agent.amqp_publisher" do
 			c.amqp_publisher :foo
 		end
 	end
-	let(:agent) { agent_class.new({}) }
+	let(:agent) { agent_class.new("AMQP_URL" => "amqp://localhost") }
 
 	context "with a name-only call" do
 		it "doesn't create the AMQP publisher immediately" do
 			expect(Brown::Agent::AMQPPublisher).to_not receive(:new)
 
-			agent_class.new({})
+			agent_class.new("AMQP_URL" => "amqp://localhost")
 		end
 
 		it "makes the publisher available in a method" do
 			expect(Brown::Agent::AMQPPublisher)
 				.to receive(:new)
-				.with(exchange_name: :foo)
+				.with(amqp_session: instance_of(Bunny::Session), exchange_name: :foo)
 				.and_return(pub_mock)
 
 			expect(agent.foo).to eq(pub_mock)
@@ -33,13 +33,13 @@ describe "Brown::Agent.amqp_publisher" do
 	context "with an options-ish call" do
 		before :each do
 			agent_class.amqp_publisher :bar,
-			                           amqp_url: "amqp://foo:bar@example.com"
+			                           exchange_type: "fanout"
 		end
 
 		it "passes the opts to the publisher" do
 			expect(Brown::Agent::AMQPPublisher)
 				.to receive(:new)
-				.with(exchange_name: :bar, amqp_url: "amqp://foo:bar@example.com")
+				.with(amqp_session: instance_of(Bunny::Session), exchange_name: :bar, exchange_type: "fanout")
 				.and_return(pub_mock)
 
 			expect(agent.bar).to eq(pub_mock)

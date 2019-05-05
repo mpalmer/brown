@@ -65,8 +65,6 @@ module Brown::Agent::AMQP::ClassMethods
 	# @param queue_name [#to_s] the name of the queue to create, if you
 	#   don't want to use the class-derived default for some reason.
 	#
-	# @param amqp_url [#to_s] the URL of the AMQP broker to connect to.
-	#
 	# @param concurrency [Integer] how many messages to process in parallel.
 	#   The default, `1`, means that a message will need to be acknowledged
 	#   (by calling `message.ack`) in your worker `blk` before the broker
@@ -99,7 +97,6 @@ module Brown::Agent::AMQP::ClassMethods
 	#
 	def amqp_listener(exchange_name = "",
 	                  queue_name:  nil,
-	                  amqp_url:    "amqp://localhost",
 	                  concurrency: 1,
 	                  &blk
 	                 )
@@ -114,7 +111,6 @@ module Brown::Agent::AMQP::ClassMethods
 		@amqp_listeners << {
 			exchange_list: exchange_list,
 			queue_name:    queue_name,
-			amqp_url:      amqp_url,
 			concurrency:   concurrency,
 			callback:      blk,
 		}
