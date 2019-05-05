@@ -33,3 +33,24 @@ require 'rspec/core/rake_task'
 RSpec::Core::RakeTask.new :test do |t|
 	t.pattern = "spec/**/*_spec.rb"
 end
+
+docker_repo = ENV["DOCKER_REPO"] || "womble/brown"
+docker_tag  = ENV["DOCKER_TAG"] || GVB.version
+
+namespace :docker do
+	desc "Build a new docker image"
+	task :build => "^build" do
+		sh "docker build --pull -t #{docker_repo}:#{docker_tag} --build-arg=http_proxy=#{ENV['http_proxy']} --build-arg=GEM_VERSION=#{ENV["GEM_VERSION"] || GVB.version} ."
+		(ENV["DOCKER_EXTRA_TAGS"] || "latest").split(',').each do |tag|
+			sh "docker tag #{docker_repo}:#{docker_tag} #{docker_repo}:#{tag}"
+		end
+	end
+
+	desc "Publish a new docker image"
+	task publish: :build do
+		sh "docker push #{docker_repo}:#{docker_tag}"
+		(ENV["DOCKER_EXTRA_TAGS"] || "latest").split(',').each do |tag|
+			sh "docker push #{docker_repo}:#{tag}"
+		end
+	end
+end

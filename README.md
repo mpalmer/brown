@@ -304,7 +304,40 @@ and it'll fire off a new agent.  Convenient, huh?
 
 Brown uses the [`service_skeleton`](https://github.com/discourse/service_skeleton) gem
 to manage agents, and so you have access to a wide variety of additional (optional)
-features, including metrics and log management.
+features, including metrics, log management, and sensible signal handling.  See [the
+`service_skeleton` README](https://github.com/discourse/service_skeleton#readme) for details
+of all that this fine framework has to offer.
+
+
+### Running agents in Docke... er, I mean, Moby
+
+Since Moby is the new hawtness, Brown provides a simple base container upon which you can layer
+your agent code, and then spawn agents to your heart's content.  As a "simple" example,
+let's say you have some agents that need Sequel and Postgres, and your agents live in
+the `lib/agents` subdirectory of your repo.  The following `Dockerfile` would build
+a new image containing all you need:
+
+    FROM womble/brown
+
+    RUN apt-get update \
+     && apt-get -y install libpq-dev libpq5 \
+     && gem install pg sequel \
+     && apt-get -y purge libpq-dev \
+     && apt-get -y autoremove --purge \
+     && rm -rf /var/lib/apt/lists/*
+
+    COPY lib/* /usr/local/lib/ruby/2.6.0/
+    COPY lib/agents /agents
+
+From there, it is a simple matter of building your new image, and running your agents,
+by running a separate docker container from the common image, passing the filename
+of each agent as the sole command-line argument:
+
+    docker build -t control .
+    docker run -n agent-86 -d control /agents/86.rb
+    docker run -n agent-99 -d control /agents/99.rb
+
+... and you're up and running!
 
 
 ## Testing
