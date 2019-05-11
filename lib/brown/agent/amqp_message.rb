@@ -39,4 +39,14 @@ class Brown::Agent::AMQPMessage
 	def ack
 		@delivery_info.channel.ack(@delivery_info.delivery_tag)
 	end
+
+	# Decline to handle this message, and requeue for later
+	#
+	# If, for some reason, the agent can't successfully process this message
+	# right *now*, but you'd like it to be processed again later, then you
+	# can ask for it to be requeued using this handy-dandy method.
+	#
+	def requeue
+		@delivery_info.channel.nack(@delivery_info.delivery_tag, false, true)
+	end
 end
