@@ -12,6 +12,6 @@ class Brown::Agent::Stimulus::Metrics
 
 	def initialize(prefix, registry:)
 		@processing_ruler = Frankenstein::Request.new(prefix, outgoing: false, registry: registry)
-		@last_trigger     = registry.counter(:"#{prefix}_last_trigger_timestamp_seconds", "When this stimulus was most recently triggered")
+		@last_trigger     = registry.gauge(:"#{prefix}_last_trigger_timestamp_seconds", "When this stimulus was most recently triggered")
 	end
 end
