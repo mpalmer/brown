@@ -20,7 +20,7 @@ class Brown::Agent < ServiceSkeleton
 				if s[:method_name]
 					s[:method] = self.method(s[:method_name])
 				end
-				stimulus_metrics = Stimulus::Metrics.new(:"#{self.service_name}_#{s[:name]}", self.metrics)
+				stimulus_metrics = Stimulus::Metrics.new(:"#{self.service_name}_#{s[:name]}", registry: self.metrics)
 				logger.debug(logloc) { "Starting stimulus #{s[:name]}" }
 				Brown::Agent::Stimulus.new(method: s[:method], stimuli_proc: s[:stimuli_proc], logger: logger, metrics: stimulus_metrics).tap do |stimulus|
 					stimulus.start!
