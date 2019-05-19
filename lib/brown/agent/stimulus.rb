@@ -33,12 +33,16 @@ class Brown::Agent::Stimulus
 	# @param logger [Logger] Where to log things to for this stimulus.
 	#   If left as the default, no logging will be done.
 	#
-	def initialize(method:, stimuli_proc:, logger: Logger.new("/dev/null"))
+	# @param metrics [Brown::Agent::Stimulus::Metrics] Somewhere to record
+	#   all the important numbers about the stimulus.
+	#
+	def initialize(method:, stimuli_proc:, logger: Logger.new("/dev/null"), metrics:)
 		puts caller if method.nil?
 		@method       = method
 		@stimuli_proc = stimuli_proc
 		@threads      = ThreadGroup.new
 		@logger       = logger
+		@metrics      = metrics
 
 		super
 	end
@@ -56,7 +60,10 @@ class Brown::Agent::Stimulus
 	#
 	def run(once = nil)
 		if once == :once
-			stimuli_proc.call(->(*args) { process(*args) })
+			@metrics.last_trigger.set({}, Time.now.to_f)
+			@metrics.processing_ruler.measure do
+				stimuli_proc.call(->(*args) { process(*args) })
+			end
 		else
 			@running = true
 			logger.debug(logloc) { "Running stimulus listener for stimulus proc at #{@method.source_location.join(":")}" }
@@ -66,7 +73,10 @@ class Brown::Agent::Stimulus
 						begin
 							logger.debug(logloc) { "Calling stimulus_proc" }
 							Thread.handle_interrupt(Exception => :immediate) do
-								stimuli_proc.call(->(*args) { spawn_worker(*args) })
+								@metrics.last_trigger.set({}, Time.now.to_f)
+								@metrics.processing_ruler.measure do
+									stimuli_proc.call(->(*args) { spawn_worker(*args) })
+								end
 							end
 						rescue StandardError => ex
 							log_exception(ex) { "Stimuli listener proc raised exception" }

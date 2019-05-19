@@ -20,16 +20,15 @@ module Brown::Agent::ClassMethods
 	# defining stimuli for which there isn't a higher-level, more-specific
 	# stimulus definition approach.
 	#
-	# When the agent is started (see {.run}), the block you provide will
-	# be executed in a dedicated thread.  Every time the block finishes,
-	# it will be run again.  Your block should do whatever it needs to do
-	# to detect when a stimuli is available (preferably by blocking
-	# somehow, rather than polling, because polling sucks).  When your
-	# code detects that a stimulus has been received, it should run
-	# `worker.call`, passing in any arguments that are required to process
-	# the stimulus.  That will then create a new instance of the agent
-	# class, and call the specified `method_name` on that instance,
-	# passing in the arguments that were passed to `worker.call`.
+	# When the agent is started (see {.run}), the block you provide will be
+	# executed in a dedicated thread.  Every time the block finishes, it will be
+	# run again.  Your block should do whatever it needs to do to detect when a
+	# stimuli is available (preferably by blocking somehow, rather than polling,
+	# because polling sucks).  When your code detects that a stimulus has been
+	# received, it should run `worker.call`, passing in any arguments that are
+	# required to process the stimulus.  That will then spawn a new thread and
+	# call the specified `method_name` on the agent object, passing in the
+	# arguments that were passed to `worker.call`.
 	#
 	# @see .every
 	#
@@ -40,10 +39,11 @@ module Brown::Agent::ClassMethods
 	#   processed, passing in anything that the stimulus processing method
 	#   (as specified by `method_name`) needs to do its job.
 	#
-	def stimulate(method_name, &blk)
+	def stimulate(method_name, stimulus_name, &blk)
 		@stimuli ||= []
 
 		@stimuli << {
+			name: stimulus_name,
 			method_name:  method_name,
 			stimuli_proc: blk,
 		}
@@ -74,12 +74,11 @@ module Brown::Agent::ClassMethods
 	# threads try to read and/or manipulate the object at the same time
 	# and all hell breaks loose.
 	#
-	# If, *and only if*, you are **100% confident** that the
-	# object you want to work with is, in fact, entirely thread-safe (the
-	# documentation should mention this), then you can mark a memo object
-	# as "safe", either by passing `true` to {.memo}, or using the handy-dandy
-	# {.safe_memo} method.  In this case, you can just reference the memo
-	# name wherever you like:
+	# If, *and only if*, you are **100% confident** that the object you want to
+	# work with is, in fact, entirely thread-safe (the documentation should
+	# mention this), then you can mark a memo object as "safe", by using the
+	# handy-dandy {.safe_memo} method.  In that case, you can just reference the
+	# memo name wherever you like:
 	#
 	#     safe_memo :db do
 	#       Sequel.connect("postgres:///app_database")
@@ -93,7 +92,8 @@ module Brown::Agent::ClassMethods
 	# state of the object can be mutated by calling any method on the
 	# object that modifies it.  If you want more read-only(ish) memos, you
 	# probably want to call `#freeze` on your object when you create it
-	# (although all the usual caveats about `#freeze` still apply).
+	# (although all the usual caveats about the many limitations of `#freeze`
+	# still apply).
 	#
 	# @param name [Symbol] the name of the memo, and hence the name of the
 	#   method that should be called to retrieve the memo's value.
@@ -128,13 +128,17 @@ module Brown::Agent::ClassMethods
 	# @param n [Numeric] The amount of time which should elapse between
 	#   invocations of the block.
 	#
+	# @param desc [#to_s] a descriptive name to use for the trigger in
+	#   metrics and the suchlike.  If you define two stimuli with the same
+	#   periodicity, you *must* give them different descriptions.
+	#
 	# @yield every `n` seconds.
 	#
-	def every(n, &blk)
-		method_name = ("every_#{n}__" + SecureRandom.uuid).to_sym
+	def every(n, desc = "every_#{n}", &blk)
+		method_name = (desc).to_sym
 		define_method(method_name, &blk)
 
-		stimulate(method_name) { |worker| Kernel.sleep n; worker.call }
+		stimulate(method_name, desc) { |worker| Kernel.sleep n; worker.call }
 	end
 end
 

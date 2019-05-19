@@ -100,7 +100,7 @@ module Brown::Agent::AMQP::ClassMethods
 	                  concurrency: 1,
 	                  &blk
 	                 )
-		exchange_list = Array === exchange_name ? exchange_name : [exchange_name]
+		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
 
 		if queue_name.nil?
 			munged_exchange_list = exchange_list.map { |n| n.to_s == "" ? "" : "-#{n.to_s}" }.join

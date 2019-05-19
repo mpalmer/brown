@@ -19,7 +19,8 @@ describe "Brown::Agent::Stimulus#run" do
 		Brown::Agent::Stimulus.new(
 			method:       agent.method(:foo),
 			stimuli_proc: stimuli_proc,
-			logger:       logger
+			logger:       logger,
+			metrics:      Brown::Agent::Stimulus::Metrics.new("bob", registry: Prometheus::Client.registry)
 		)
 	end
 

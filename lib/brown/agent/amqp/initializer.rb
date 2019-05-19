@@ -14,23 +14,28 @@ module Brown::Agent::AMQP::Initializer
 			end
 		end
 
-		initialize_connection
 		initialize_publishers
+	end
+
+	def run
 		initialize_listeners
+
+		super
 	end
 
 	def shutdown
-		@amqp_session.close
+		amqp_session.close
 
 		super
 	end
 
 	private
 
-	def initialize_connection
-		logger.debug(logloc) { "Initializing AMQP session" }
-		@amqp_session = Bunny.new(config.amqp_url, recover_from_connection_close: true)
-		@amqp_session.start
+	def amqp_session
+		@amqp_session ||= begin
+			logger.debug(logloc) { "Initializing AMQP session" }
+			Bunny.new(config.amqp_url, recover_from_connection_close: true).start
+		end
 	end
 
 	def initialize_publishers
@@ -41,7 +46,7 @@ module Brown::Agent::AMQP::Initializer
 			define_singleton_method(publisher[:name]) do
 				iv = :"@#{publisher[:name]}"
 				# It's memoisation, Jim, but not as *we* know it
-				instance_variable_get(iv) || instance_variable_set(iv, Brown::Agent::AMQPPublisher.new(amqp_session: @amqp_session, **opts))
+				instance_variable_get(iv) || instance_variable_set(iv, Brown::Agent::AMQPPublisher.new(amqp_session: amqp_session, **opts))
 			end
 		end
 	end
@@ -54,6 +59,7 @@ module Brown::Agent::AMQP::Initializer
 
 			@stimuli ||= []
 			@stimuli << {
+				name: "amqp_listener_#{listener[:exchange_list].join("_").gsub(/[^A-Za-z0-9_]/, '_').gsub(/__+/, "_")}",
 				method: method(worker_method),
 				stimuli_proc: proc do |worker|
 					consumer = queue(listener).subscribe(manual_ack: true) do |di, prop, payload|
@@ -74,7 +80,7 @@ module Brown::Agent::AMQP::Initializer
 		@queue_cache[listener] ||= begin
 			bind_queue(
 				queue_name:    listener[:queue_name],
-				exchange_list: listener[:exchange_list],
+				exchange_list: listener[:exchange_list].map(&:to_s),
 				concurrency:   listener[:concurrency],
 			)
 		rescue StandardError => ex
@@ -85,7 +91,7 @@ module Brown::Agent::AMQP::Initializer
 	end
 
 	def bind_queue(queue_name:, exchange_list:, concurrency:)
-		ch = @amqp_session.create_channel
+		ch = amqp_session.create_channel
 		ch.prefetch(concurrency)
 
 		ch.queue(queue_name, durable: true).tap do |q|
@@ -97,9 +103,9 @@ module Brown::Agent::AMQP::Initializer
 						logger.error { "bind failed: #{ex.message}" }
 						sleep 5
 						return bind_queue(
-						       queue_name: queue_name,
+						       queue_name:    queue_name,
 						       exchange_list: exchange_list,
-						       concurrency: concurrency
+						       concurrency:   concurrency
 						      )
 					end
 				end

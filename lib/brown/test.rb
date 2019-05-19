@@ -8,16 +8,6 @@ require 'brown/agent/amqp_message_mock'
 #     require 'brown/test'
 #
 module Brown::TestHelpers
-	#:nodoc:
-	def self.included(base)
-		base.class_eval do
-			%i{memo amqp_publisher amqp_listener}.each do |m|
-				alias_method "#{m}_without_test".to_sym, m
-				alias_method m, "#{m}_with_test".to_sym
-			end
-		end
-	end
-
 	# Is there not an arbitrary stimulus with the specified name registered
 	# on this agent?
 	#
@@ -44,8 +34,8 @@ module Brown::TestHelpers
 	# Test-specific decorator to replace the "real" memo container object
 	# with a test-enabled alternative.
 	#
-	def memo_with_test(name, safe=false, &generator)
-		memo_without_test(name, safe, &generator)
+	def memo(name, safe=false, &generator)
+		super
 
 		# Throw out the real memo, replace with our own testing-enabled variant
 		@memos[name] = Brown::Agent::Memo.new(generator, safe, true)
@@ -100,12 +90,15 @@ module Brown::TestHelpers
 	#
 	# Test-specific decorator to record the existence of a publisher.
 	#
-	def amqp_publisher_with_test(name, *args)
+	def amqp_publisher(name, *args)
 		@amqp_publishers ||= {}
 
 		@amqp_publishers[name] = true
 
-		amqp_publisher_without_test(name, *args)
+		publisher =
+		self.define_singleton_method
+
+		super
 	end
 
 	# Is there a publisher with the specified name registered on this agent?
@@ -122,7 +115,7 @@ module Brown::TestHelpers
 	#
 	# Test-specific decorator to record the details of a listener.
 	#
-	def amqp_listener_with_test(exchange_name, *args, &blk)
+	def amqp_listener(exchange_name, *args, &blk)
 		@amqp_listeners ||= {}
 
 		if exchange_name.is_a? Array
@@ -133,7 +126,7 @@ module Brown::TestHelpers
 			@amqp_listeners[exchange_name.to_s] = blk
 		end
 
-		amqp_listener_without_test(exchange_name, *args, &blk)
+		super
 	end
 
 	# Is there a listener on the specified exchange name registered on this agent?
@@ -163,23 +156,18 @@ module Brown::TestHelpers
 	#   that isn't being listened on.
 	#
 	def amqp_receive(exchange_name, payload, **opts)
-		unless amqp_listener?(exchange_name)
-			raise ArgumentError,
-			      "Unknown exchange: #{exchange_name}"
-		end
-
 		msg = Brown::Agent::AMQPMessageMock.new(opts.merge(payload: payload))
 
-		self.new.tap do |p|
-			uuid = SecureRandom.uuid
-			p.singleton_class.__send__(:define_method, uuid, &@amqp_listeners[exchange_name])
-			p.__send__(uuid, msg)
+		(self.class.amqp_listeners || []).each do |listener|
+			if listener[:exchange_list].include?(exchange_name.to_s)
+				m = SecureRandom.uuid
+				define_singleton_method(m.to_sym, &listener[:callback])
+				__send__(m.to_sym, msg)
+			end
 		end
 
 		msg.acked?
 	end
 end
 
-class << Brown::Agent
-	include Brown::TestHelpers
-end
+Brown::Agent.prepend(Brown::TestHelpers)

@@ -2,10 +2,6 @@ require "service_skeleton"
 
 # A Brown Agent.  The whole reason we're here.
 #
-# An agent is the fundamental unit of work in the Brown universe.  Pretty much
-# everything you configure on an agent is done on its class; the individual
-# instances of the agent are spawned by the agent's stimuli, internally.
-#
 class Brown::Agent < ServiceSkeleton
 	def initialize(*_)
 		super
@@ -24,8 +20,9 @@ class Brown::Agent < ServiceSkeleton
 				if s[:method_name]
 					s[:method] = self.method(s[:method_name])
 				end
-				logger.debug(logloc) { "Starting stimulus for method #{(s[:method].name rescue nil).inspect}" }
-				Brown::Agent::Stimulus.new(method: s[:method], stimuli_proc: s[:stimuli_proc], logger: logger).tap do |stimulus|
+				stimulus_metrics = Stimulus::Metrics.new(:"#{self.service_name}_#{s[:name]}", self.metrics)
+				logger.debug(logloc) { "Starting stimulus #{s[:name]}" }
+				Brown::Agent::Stimulus.new(method: s[:method], stimuli_proc: s[:stimuli_proc], logger: logger, metrics: stimulus_metrics).tap do |stimulus|
 					stimulus.start!
 					logger.debug(logloc) { "Stimulus started" }
 				end
