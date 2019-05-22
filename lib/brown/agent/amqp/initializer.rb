@@ -45,11 +45,9 @@ module Brown::Agent::AMQP::Initializer
 			logger.debug(logloc) { "Initializing AMQP publisher #{publisher}" }
 			opts = { exchange_name: publisher[:name] }.merge(publisher[:opts])
 
-			define_singleton_method(publisher[:name]) do
-				iv = :"@#{publisher[:name]}"
-				# It's memoisation, Jim, but not as *we* know it
-				instance_variable_get(iv) || instance_variable_set(iv, Brown::Agent::AMQPPublisher.new(amqp_session: amqp_session, **opts))
-			end
+			amqp_publisher = Brown::Agent::AMQPPublisher.new(amqp_session: amqp_session, **opts)
+
+			define_singleton_method(publisher[:name]) { amqp_publisher }
 		end
 	end
 
