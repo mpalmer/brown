@@ -1,4 +1,6 @@
 require 'bunny'
+require 'json'
+require 'yaml'
 
 # Publish messages to an AMQP exchange.
 #
@@ -112,7 +114,12 @@ class Brown::Agent::AMQPPublisher
 
 	# Publish a message to the exchange.
 	#
-	# @param payload [#to_s] the "body" of the message to send.
+	# @param payload [#to_s, Hash<Symbol, Object>] the "body" of the message to
+	#   send.  If this parameter is a (single-element) hash, then the key must
+	#   be `json` or `yaml`, and the object passed as the associated value will
+	#   be serialised by calling `.to_json` or `.to_yaml` (as appropriate).  The
+	#   `content-type` message option will automatically be set to the
+	#   appropriate MIME type.
 	#
 	# @param type [#to_s] override the default message type set in the
 	#   publisher, just for this one message.
@@ -135,6 +142,27 @@ class Brown::Agent::AMQPPublisher
 		            routing_key: routing_key
 		          }.delete_if { |_,v| v == NoValue }
 		       ).delete_if { |_,v| v.nil? }.merge(amqp_opts)
+
+		if payload.is_a?(Hash)
+			if payload.length != 1
+				raise ArgumentError,
+					   "Payload hash must have exactly one element"
+			end
+
+			case payload.keys.first
+			when :json
+				@logger.debug(logloc) { "JSON serialisation activated" }
+				opts[:content_type] = "application/json"
+				payload = payload.values.first.to_json
+			when :yaml
+				@logger.debug(logloc) { "YAML serialisation activated" }
+				opts[:content_type] = "application/x.yaml"
+				payload = payload.values.first.to_yaml
+			else
+				raise ArgumentError,
+				      "Unknown format type: #{payload.keys.first.inspect} (must be :json or :yaml)"
+			end
+		end
 
 		if @amqp_exchange.name == "" and opts[:routing_key].nil?
 			raise ExchangeError,

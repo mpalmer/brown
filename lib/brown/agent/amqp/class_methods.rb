@@ -88,6 +88,13 @@ module Brown::Agent::AMQP::ClassMethods
 	#   awful lot of trouble if you're not careful, so don't do it just
 	#   because you can.
 	#
+	# @param autoparse [Boolean] if your messages are all of a single
+	#   content type, and the first thing you do on receiving a message is to
+	#   call `JSON.parse(msg.payload)`, then you can turn on `autoparse`, and
+	#   *as long as the message content-type is set correctly*, your messages
+	#   will be parsed into native data structures before being turned into the
+	#   `payload`.
+	#
 	# @param blk [Proc] is called every time a message is received from
 	#   the queue, and an instance of {Brown::Agent::AMQPMessage} will
 	#   be passed as the sole argument.
@@ -98,6 +105,7 @@ module Brown::Agent::AMQP::ClassMethods
 	def amqp_listener(exchange_name = "",
 	                  queue_name:  nil,
 	                  concurrency: 1,
+	                  autoparse: false,
 	                  &blk
 	                 )
 		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
@@ -112,6 +120,7 @@ module Brown::Agent::AMQP::ClassMethods
 			exchange_list: exchange_list,
 			queue_name:    queue_name,
 			concurrency:   concurrency,
+			autoparse:     autoparse,
 			callback:      blk,
 		}
 	end

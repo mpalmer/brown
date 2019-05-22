@@ -1,4 +1,6 @@
 require "securerandom"
+require "json"
+require "yaml"
 
 # Methods that have to be prepended in order to work properly.
 #
@@ -63,6 +65,18 @@ module Brown::Agent::AMQP::Initializer
 				method: method(worker_method),
 				stimuli_proc: proc do |worker|
 					consumer = queue(listener).subscribe(manual_ack: true) do |di, prop, payload|
+						if listener[:autoparse]
+							logger.debug(logloc) { "Attempting to autoparse against Content-Type: #{prop.content_type.inspect}" }
+							case prop.content_type
+							when "application/json"
+								logger.debug(logloc) { "Parsing as JSON" }
+								payload = JSON.parse(payload)
+							when "application/x.yaml"
+								logger.debug(logloc) { "Parsing as YAML" }
+								payload = YAML.load(payload)
+							end
+						end
+
 						worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
 					end
 

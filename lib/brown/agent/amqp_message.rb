@@ -7,11 +7,14 @@
 # "delivered".
 #
 class Brown::Agent::AMQPMessage
-	# The raw body of the message.  No translation is done on what was sent,
-	# so any serialisation that might have been applied to the message will
-	# have to be undone manually.
+	# The body of the message.
 	#
-	# @return [String]
+	# If your subscription to the queue set `autoparse: true`, and the message
+	# that was sent has an appropriate content type set, then this will be the
+	# deserialised object, otherwise it will be a string representing the raw
+	# message that was sent.
+	#
+	# @return [Object]
 	#
 	attr_reader :payload
 
