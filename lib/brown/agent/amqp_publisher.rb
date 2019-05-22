@@ -1,10 +1,13 @@
 require 'bunny'
 require 'json'
+require 'service_skeleton/logging_helpers'
 require 'yaml'
 
 # Publish messages to an AMQP exchange.
 #
 class Brown::Agent::AMQPPublisher
+	include ServiceSkeleton::LoggingHelpers
+
 	#:nodoc:
 	# Sentinel to detect that we've been sent the "default" value,
 	# since `nil` can, sometimes, be a valid value.
@@ -91,9 +94,11 @@ class Brown::Agent::AMQPPublisher
 	               logger:        Logger.new("/dev/null"),
 	               **amqp_opts
 	              )
+		@logger = logger
 		@amqp_channel = amqp_session.create_channel
 
 		begin
+			@logger.debug(logloc) { "Initializing exchange #{exchange_name.inspect}" }
 			@amqp_exchange = @amqp_channel.exchange(
 			                   exchange_name,
 			                   type: exchange_type,
@@ -136,6 +141,8 @@ class Brown::Agent::AMQPPublisher
 	#   for full details of every possible permutation.
 	#
 	def publish(payload, type: NoValue, routing_key: NoValue, **amqp_opts)
+		@logger.debug(logloc) { "Publishing message #{payload.inspect}, type: #{type.inspect}, routing_key: #{routing_key.inspect}, options: #{amqp_opts.inspect}" }
+
 		opts = @message_defaults.merge(
 		          {
 		            type:        type,
@@ -171,6 +178,7 @@ class Brown::Agent::AMQPPublisher
 
 		@channel_mutex.synchronize do
 			@amqp_exchange.publish(payload, opts)
+			@logger.debug(logloc) { "... and it's gone" }
 		end
 	end
 end
