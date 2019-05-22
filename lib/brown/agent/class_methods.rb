@@ -109,7 +109,7 @@ module Brown::Agent::ClassMethods
 			end
 
 			@memo_mutexes[name].synchronize do
-				@memo_values[name] ||= generator.call
+				@memo_values[name] ||= instance_eval(&generator)
 				blk.call(@memo_values[name])
 			end
 		end
