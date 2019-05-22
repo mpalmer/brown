@@ -52,4 +52,13 @@ class Brown::Agent::AMQPMessage
 	def requeue
 		@delivery_info.channel.nack(@delivery_info.delivery_tag, false, true)
 	end
+
+	# Decline to handle this message, now and forever
+	#
+	# If you want to dead-letter (or just disappear) a message, call this
+	# method, and it will cease to exist.
+	#
+	def reject
+		@delivery_info.channel.nack(@delivery_info.delivery_tag, false, false)
+	end
 end
