@@ -135,10 +135,45 @@ module Brown::Agent::ClassMethods
 	# @yield every `n` seconds.
 	#
 	def every(n, desc = "every_#{n}", &blk)
-		method_name = (desc).to_sym
+		method_name = desc.to_sym
 		define_method(method_name, &blk)
 
 		stimulate(method_name, desc) { |worker| Kernel.sleep n; worker.call }
+	end
+
+	# Keep a block of code running, calling it again whenever it exits.
+	#
+	# @param desc [#to_s] a descriptive name to use for the trigger.
+	#   Each `respawn` block must have its own description.
+	#
+	# @yield every time the code block finishes.
+	#
+	def respawn(desc, &blk)
+		mutex   = Mutex.new
+		cv      = ConditionVariable.new
+		running = false
+
+		method_name = desc.to_sym
+		define_method(method_name) do
+			mutex.synchronize do
+				begin
+					instance_eval(&blk)
+				ensure
+					running = false
+					cv.signal
+				end
+			end
+		end
+
+		stimulate(method_name, desc) do |worker|
+			mutex.synchronize do
+				while running
+					cv.wait(mutex)
+				end
+				running = true
+				worker.call
+			end
+		end
 	end
 end
 
