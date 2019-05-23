@@ -10,7 +10,7 @@ module Brown::Agent::AMQP
 	private
 
 	def self.included(mod)
-		mod.string :AMQP_URL
+		mod.url :AMQP_URL
 		mod.prepend(Brown::Agent::AMQP::Initializer)
 		mod.extend(Brown::Agent::AMQP::ClassMethods)
 	end

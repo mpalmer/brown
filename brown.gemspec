@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
 	s.required_ruby_version = ">= 2.1.0"
 
 	s.add_runtime_dependency "bunny", "~> 1.7"
-  s.add_runtime_dependency "service_skeleton", "~> 0.a"
+  s.add_runtime_dependency "service_skeleton", ">= 0.0.0.41.g9507cda"
 
 	s.add_development_dependency 'bundler'
   s.add_development_dependency 'git-version-bump'
