@@ -2,7 +2,7 @@ require 'brown/test'
 
 module Brown::SpecHelpers
 	def self.included(mod)
-		mod.let(:agent_env) { { "AMQP_URL" => "invalid:///" } }
+		mod.let(:agent_env) { { "AMQP_URL" => "amqp://spec.example.invalid" } }
 		mod.let(:agent) { described_class.new(agent_env) }
 
 		if mod.described_class.respond_to?(:amqp_publishers)
