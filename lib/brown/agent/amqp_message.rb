@@ -9,10 +9,10 @@
 class Brown::Agent::AMQPMessage
 	# The body of the message.
 	#
-	# If your subscription to the queue set `autoparse: true`, and the message
-	# that was sent has an appropriate content type set, then this will be the
-	# deserialised object, otherwise it will be a string representing the raw
-	# message that was sent.
+	# Depending on the listener configuration, this may either be a string
+	# representing the raw message, or else a deserialized object of some
+	# sort.  See the documentation for the amqp_listener method's `autoparse`
+	# and `allowed_classes` parameters for more details.
 	#
 	# @return [Object]
 	#

@@ -36,7 +36,7 @@ module Brown::Agent::AMQP::Initializer
 	def amqp_session
 		@amqp_session ||= begin
 			logger.debug(logloc) { "Initializing AMQP session" }
-			Bunny.new(config.amqp_url, recover_from_connection_close: true).start
+			Bunny.new(config.amqp_url, recover_from_connection_close: true, logger: config.logger).start
 		end
 	end
 
@@ -72,14 +72,23 @@ module Brown::Agent::AMQP::Initializer
 							when "application/x.yaml"
 								logger.debug(logloc) { "Parsing as YAML" }
 								payload = YAML.load(payload)
+							when "application/vnd.brown.object.v1"
+								logger.debug(logloc) { "Parsing as Brown object, allowed classes: #{listener[:allowed_classes]}" }
+								begin
+									payload = YAML.safe_load(payload, listener[:allowed_classes])
+								rescue Psych::DisallowedClass => ex
+									logger.error(logloc) { "message rejected: #{ex.message}" }
+									di.channel.nack(di.delivery_tag, false, false)
+									next
+								end
 							end
 						end
 
 						worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
 					end
 
-					logger.debug(logloc) { "stimuli_proc for #{listener[:queue_name]} having a snooze" }
 					while consumer&.channel&.status == :open do
+						logger.debug(logloc) { "stimuli_proc for #{listener[:queue_name]} having a snooze" }
 						sleep
 					end
 				end

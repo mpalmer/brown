@@ -93,7 +93,14 @@ module Brown::Agent::AMQP::ClassMethods
 	#   call `JSON.parse(msg.payload)`, then you can turn on `autoparse`, and
 	#   *as long as the message content-type is set correctly*, your messages
 	#   will be parsed into native data structures before being turned into the
-	#   `payload`.
+	#   `payload`.  This also enables automatic deserialization of object
+	#   messages.
+	#
+	# @param allowed_classes [Array<Class>] a list of classes which are
+	#   permitted to be instantiated when a message's `content_type` attribute
+	#   indicates it is a serialized object.  If a message is received that
+	#   contains a class not in the list (even if that object is embedded inside
+	#   the message itself), the message will be rejected.
 	#
 	# @param blk [Proc] is called every time a message is received from
 	#   the queue, and an instance of {Brown::Agent::AMQPMessage} will
@@ -103,9 +110,10 @@ module Brown::Agent::AMQP::ClassMethods
 	#   each time a message is received from the queue.
 	#
 	def amqp_listener(exchange_name = "",
-	                  queue_name:  nil,
-	                  concurrency: 1,
-	                  autoparse: false,
+	                  queue_name:      nil,
+	                  concurrency:     1,
+	                  autoparse:       false,
+	                  allowed_classes: nil,
 	                  &blk
 	                 )
 		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
@@ -117,11 +125,12 @@ module Brown::Agent::AMQP::ClassMethods
 
 		@amqp_listeners ||= []
 		@amqp_listeners << {
-			exchange_list: exchange_list,
-			queue_name:    queue_name,
-			concurrency:   concurrency,
-			autoparse:     autoparse,
-			callback:      blk,
+			exchange_list:   exchange_list,
+			queue_name:      queue_name,
+			concurrency:     concurrency,
+			autoparse:       autoparse,
+			allowed_classes: allowed_classes,
+			callback:        blk,
 		}
 	end
 end

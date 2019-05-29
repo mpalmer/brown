@@ -119,12 +119,35 @@ class Brown::Agent::AMQPPublisher
 
 	# Publish a message to the exchange.
 	#
-	# @param payload [#to_s, Hash<Symbol, Object>] the "body" of the message to
-	#   send.  If this parameter is a (single-element) hash, then the key must
-	#   be `json` or `yaml`, and the object passed as the associated value will
-	#   be serialised by calling `.to_json` or `.to_yaml` (as appropriate).  The
-	#   `content-type` message option will automatically be set to the
-	#   appropriate MIME type.
+	# A message can be provided in the `payload` parameter in one of several
+	# ways:
+	#
+	# * as a string, in which case the provided string is used as the message
+	#   payload as-is, with no further processing or added metadata.
+	#
+	# * as a single-element hash, in which case the key is used as the identifier
+	#   of the serialization format (either `:yaml` or `:json`), while the value
+	#   is serialized by calling the appropriate conversion method (`.to_yaml` or
+	#   `.to_json`, as appropriate) and the resulting string is used as the message
+	#   payload.  The message's `content_type` attribute is set appropriately, also,
+	#   allowing for automatic deserialization at the receiver.
+	#
+	#   This payload format is best used where you have complex structured data to
+	#   pass around between system components with very diverse implementation
+	#   environments, or where very loose coupling is desired.
+	#
+	# * as an arbitrary object, in which case the object is serialized in a form
+	#   which allows it to be transparently deserialized again into a native
+	#   Ruby object at the other end.
+	#
+	#   This payload format is most appropriate when you're deploying a
+	#   tightly-coupled system where all the consumers are Brown agents, or at
+	#   least all Ruby-based.
+	#
+	# @param payload [String, Hash<Symbol, Object>, Object] the content of the
+	#   message to send.  There are several possibilities for what can be passed
+	#   here, and how it is encoded into an AMQP message, as per the description
+	#   above.
 	#
 	# @param type [#to_s] override the default message type set in the
 	#   publisher, just for this one message.
@@ -169,6 +192,9 @@ class Brown::Agent::AMQPPublisher
 				raise ArgumentError,
 				      "Unknown format type: #{payload.keys.first.inspect} (must be :json or :yaml)"
 			end
+		elsif !payload.is_a?(String)
+			payload = payload.to_yaml
+			opts[:content_type] = "application/vnd.brown.object.v1"
 		end
 
 		if @amqp_exchange.name == "" and opts[:routing_key].nil?
