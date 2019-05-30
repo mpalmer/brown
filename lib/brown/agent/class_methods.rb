@@ -60,11 +60,10 @@ module Brown::Agent::ClassMethods
 	# anything that has a non-trivial setup time, or which you *want* to
 	# share across all stimuli processing, should go in a memo.
 	#
-	# Because we do everything in threads, and because dealing with
-	# locking by hand is a nightmare, access to memos is, by default,
-	# protected by a mutex.  This means that any time you want to do
-	# something with a memo, you call its name and pass a block to do
-	# whatever you want to do with the value, like this:
+	# Because we do everything in threads, and because dealing with locking by
+	# hand is a nightmare, access to memos is protected by a mutex.  This means
+	# that any time you want to do something with a memo, you call its name and
+	# pass a block to do whatever you want to do with the value, like this:
 	#
 	#     config { |cfg| puts "foo is #{cfg[:foo]}" }
 	#
@@ -73,19 +72,6 @@ module Brown::Agent::ClassMethods
 	# you do this, you will risk all sorts of concurrency bugs, where two
 	# threads try to read and/or manipulate the object at the same time
 	# and all hell breaks loose.
-	#
-	# If, *and only if*, you are **100% confident** that the object you want to
-	# work with is, in fact, entirely thread-safe (the documentation should
-	# mention this), then you can mark a memo object as "safe", by using the
-	# handy-dandy {.safe_memo} method.  In that case, you can just reference the
-	# memo name wherever you like:
-	#
-	#     safe_memo :db do
-	#       Sequel.connect("postgres:///app_database")
-	#     end
-	#
-	#     #...
-	#     db[:foo].where { :baz > 42 }
 	#
 	# Note that there is intentionally no way to reassign a memo object.
 	# This doesn't mean that memo objects are "read-only", however.  The
