@@ -36,7 +36,11 @@ module Brown::Agent::AMQP::Initializer
 	def amqp_session
 		@amqp_session ||= begin
 			logger.debug(logloc) { "Initializing AMQP session" }
-			Bunny.new(config.amqp_url, recover_from_connection_close: true, logger: config.logger).start
+			Bunny.new(config.amqp_url, recover_from_connection_close: true, logger: config.logger).tap do |session|
+				session.on_blocked { |blocked| logger.warn(logloc) { "AMQP connection has become blocked: #{blocked.reason}" } }
+				session.on_unblocked { logger.info(logloc) { "AMQP connection has unblocked" } }
+				session.start
+			end
 		end
 	end
 
