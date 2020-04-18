@@ -102,6 +102,9 @@ module Brown::Agent::AMQP::ClassMethods
 	#   contains a class not in the list (even if that object is embedded inside
 	#   the message itself), the message will be rejected.
 	#
+	# @param routing_key [#to_s] if specified, then the queue that is created
+	#   will be bound to the exchange with a defined routing key.
+	#
 	# @param blk [Proc] is called every time a message is received from
 	#   the queue, and an instance of {Brown::Agent::AMQPMessage} will
 	#   be passed as the sole argument.
@@ -114,13 +117,14 @@ module Brown::Agent::AMQP::ClassMethods
 	                  concurrency:     1,
 	                  autoparse:       false,
 	                  allowed_classes: nil,
+	                  routing_key:     nil,
 	                  &blk
 	                 )
 		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
 
 		if queue_name.nil?
 			munged_exchange_list = exchange_list.map { |n| n.to_s == "" ? "" : "-#{n.to_s}" }.join
-			queue_name = self.name.to_s + munged_exchange_list
+			queue_name = self.name.to_s + munged_exchange_list + (routing_key ? ":#{routing_key}" : "")
 		end
 
 		@amqp_listeners ||= []
@@ -130,6 +134,7 @@ module Brown::Agent::AMQP::ClassMethods
 			concurrency:     concurrency,
 			autoparse:       autoparse,
 			allowed_classes: allowed_classes,
+			routing_key:     routing_key,
 			callback:        blk,
 		}
 	end

@@ -107,6 +107,7 @@ module Brown::Agent::AMQP::Initializer
 				queue_name:    listener[:queue_name],
 				exchange_list: listener[:exchange_list].map(&:to_s),
 				concurrency:   listener[:concurrency],
+				routing_key:   listener[:routing_key],
 			)
 		rescue StandardError => ex
 			log_exception(ex) { "Unknown error while binding queue #{listener[:queue_name].inspect} to exchange list #{listener[:exchange_list].inspect}" }
@@ -115,7 +116,7 @@ module Brown::Agent::AMQP::Initializer
 		end
 	end
 
-	def bind_queue(queue_name:, exchange_list:, concurrency:)
+	def bind_queue(queue_name:, exchange_list:, concurrency:, routing_key: nil)
 		ch = amqp_session.create_channel
 		ch.prefetch(concurrency)
 
@@ -123,14 +124,15 @@ module Brown::Agent::AMQP::Initializer
 			exchange_list.each do |exchange_name|
 				if exchange_name != ""
 					begin
-						q.bind(exchange_name)
+						q.bind(exchange_name, routing_key: routing_key)
 					rescue Bunny::NotFound => ex
 						logger.error { "bind failed: #{ex.message}" }
 						sleep 5
 						return bind_queue(
 						       queue_name:    queue_name,
 						       exchange_list: exchange_list,
-						       concurrency:   concurrency
+						       concurrency:   concurrency,
+						       routing_key:   routing_key,
 						      )
 					end
 				end
