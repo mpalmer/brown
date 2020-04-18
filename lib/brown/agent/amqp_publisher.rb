@@ -46,7 +46,7 @@ class Brown::Agent::AMQPPublisher
 	#   to.  By default, the exchange is created as a *direct* exchange; this
 	#   routes messages to their destination queue(s) based on the
 	#   `routing_key` (set per-publisher or per-queue).  Other valid values
-	#   for this option are `:direct`, `:topic`, and `:headers`.
+	#   for this option are `:fanout`, `:topic`, and `:headers`.
 	#
 	# @param exchange_name [#to_s] the name of the exchange to create or
 	#   publish to.  If not specified, then the "default" exchange is used,
