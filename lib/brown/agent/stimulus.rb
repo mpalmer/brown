@@ -48,7 +48,11 @@ class Brown::Agent::Stimulus
 	end
 
 	def start
-		loop { run }
+		@running = true
+
+		while @running
+			run
+		end
 	end
 
 	# Run the stimulus listener.
@@ -80,6 +84,7 @@ class Brown::Agent::Stimulus
 							end
 						rescue StandardError => ex
 							log_exception(ex) { "Stimuli listener proc raised exception" }
+							sleep 1
 						end
 					end
 				rescue ServiceSkeleton::BackgroundWorker.const_get(:TerminateBackgroundThread) => ex
