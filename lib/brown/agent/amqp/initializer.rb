@@ -108,6 +108,7 @@ module Brown::Agent::AMQP::Initializer
 				exchange_list: listener[:exchange_list].map(&:to_s),
 				concurrency:   listener[:concurrency],
 				routing_key:   listener[:routing_key],
+				predeclared:   listener[:predeclared],
 			)
 		rescue StandardError => ex
 			log_exception(ex) { "Unknown error while binding queue #{listener[:queue_name].inspect} to exchange list #{listener[:exchange_list].inspect}" }
@@ -116,11 +117,12 @@ module Brown::Agent::AMQP::Initializer
 		end
 	end
 
-	def bind_queue(queue_name:, exchange_list:, concurrency:, routing_key: nil)
+	def bind_queue(queue_name:, exchange_list:, concurrency:, routing_key: nil, predeclared: false)
 		ch = amqp_session.create_channel
 		ch.prefetch(concurrency)
 
-		ch.queue(queue_name, durable: true).tap do |q|
+		ch.queue(queue_name, durable: true, no_declare: predeclared).tap do |q|
+			next if predeclared
 			exchange_list.each do |exchange_name|
 				if exchange_name != ""
 					begin

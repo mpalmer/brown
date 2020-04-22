@@ -105,6 +105,10 @@ module Brown::Agent::AMQP::ClassMethods
 	# @param routing_key [#to_s] if specified, then the queue that is created
 	#   will be bound to the exchange with a defined routing key.
 	#
+	# @param predeclared [Boolean] indicates that the necessary queues and
+	#   bindings are already in place, and thus no declarations should be
+	#   made to the AMQP broker.
+	#
 	# @param blk [Proc] is called every time a message is received from
 	#   the queue, and an instance of {Brown::Agent::AMQPMessage} will
 	#   be passed as the sole argument.
@@ -118,6 +122,7 @@ module Brown::Agent::AMQP::ClassMethods
 	                  autoparse:       false,
 	                  allowed_classes: nil,
 	                  routing_key:     nil,
+	                  predeclared:     false,
 	                  &blk
 	                 )
 		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
@@ -136,6 +141,7 @@ module Brown::Agent::AMQP::ClassMethods
 			allowed_classes: allowed_classes,
 			routing_key:     routing_key,
 			callback:        blk,
+			predeclared:     predeclared,
 		}
 	end
 end
