@@ -88,7 +88,15 @@ module Brown::Agent::AMQP::Initializer
 							end
 						end
 
-						worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
+						begin
+							worker.call Brown::Agent::AMQPMessage.new(di, prop, payload)
+						rescue StandardError => ex
+							log_exception(ex) { "Exception while processing message #{payload.inspect}" }
+							if listener[:reject_on_error]
+								logger.info(logloc) { "Rejecting message which caused exception" }
+								di.channel.nack(di.delivery_tag, false, false)
+							end
+						end
 					end
 
 					while consumer&.channel&.status == :open do

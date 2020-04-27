@@ -109,6 +109,12 @@ module Brown::Agent::AMQP::ClassMethods
 	#   bindings are already in place, and thus no declarations should be
 	#   made to the AMQP broker.
 	#
+	# @param reject_on_error [Boolean] by default, if an uncaught exception
+	#   is raised during message handling, an error will be logged and the
+	#   listener will not process any new messages.  However, if
+	#   `reject_on_error: true`, then instead the message will be rejected, and
+	#   processing will continue
+	#
 	# @param blk [Proc] is called every time a message is received from
 	#   the queue, and an instance of {Brown::Agent::AMQPMessage} will
 	#   be passed as the sole argument.
@@ -123,6 +129,7 @@ module Brown::Agent::AMQP::ClassMethods
 	                  allowed_classes: nil,
 	                  routing_key:     nil,
 	                  predeclared:     false,
+	                  reject_on_error: false,
 	                  &blk
 	                 )
 		exchange_list = (Array === exchange_name ? exchange_name : [exchange_name]).map(&:to_s)
@@ -142,6 +149,7 @@ module Brown::Agent::AMQP::ClassMethods
 			routing_key:     routing_key,
 			callback:        blk,
 			predeclared:     predeclared,
+			reject_on_error: reject_on_error,
 		}
 	end
 end
