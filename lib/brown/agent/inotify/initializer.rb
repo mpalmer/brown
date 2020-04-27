@@ -58,26 +58,13 @@ module Brown::Agent::AMQP::Initializer
 	def initialize_listeners
 		(self.class.amqp_listeners || []).each do |listener|
 			logger.debug(logloc) { "Initializing AMQP listener #{listener}" }
-			worker_method  = "amqp_listener_worker_#{SecureRandom.uuid}".to_sym
-			wrapper_method = "amqp_listener_wrapper_#{SecureRandom.uuid}".to_sym
-
+			worker_method = "amqp_listener_worker_#{SecureRandom.uuid}".to_sym
 			define_singleton_method(worker_method, listener[:callback])
-			define_singleton_method(wrapper_method) do |msg|
-				begin
-					__send__(worker_method, msg)
-				rescue StandardError => ex
-					log_exception(ex) { "Exception while processing message #{msg.payload.inspect}" }
-					if listener[:reject_on_error]
-						logger.info(logloc) { "Rejecting message which caused exception" }
-						msg.reject
-					end
-				end
-			end
 
 			@stimuli ||= []
 			@stimuli << {
 				name: "amqp_listener_#{listener[:exchange_list].join("_").gsub(/[^A-Za-z0-9_]/, '_').gsub(/__+/, "_")}",
-				method: method(wrapper_method),
+				method: method(worker_method),
 				stimuli_proc: proc do |worker|
 					consumer = queue(listener).subscribe(manual_ack: true) do |di, prop, payload|
 						if listener[:autoparse]
@@ -120,8 +107,6 @@ module Brown::Agent::AMQP::Initializer
 				queue_name:    listener[:queue_name],
 				exchange_list: listener[:exchange_list].map(&:to_s),
 				concurrency:   listener[:concurrency],
-				routing_key:   listener[:routing_key],
-				predeclared:   listener[:predeclared],
 			)
 		rescue StandardError => ex
 			log_exception(ex) { "Unknown error while binding queue #{listener[:queue_name].inspect} to exchange list #{listener[:exchange_list].inspect}" }
@@ -130,24 +115,22 @@ module Brown::Agent::AMQP::Initializer
 		end
 	end
 
-	def bind_queue(queue_name:, exchange_list:, concurrency:, routing_key: nil, predeclared: false)
+	def bind_queue(queue_name:, exchange_list:, concurrency:)
 		ch = amqp_session.create_channel
 		ch.prefetch(concurrency)
 
-		ch.queue(queue_name, durable: true, no_declare: predeclared).tap do |q|
-			next if predeclared
+		ch.queue(queue_name, durable: true).tap do |q|
 			exchange_list.each do |exchange_name|
 				if exchange_name != ""
 					begin
-						q.bind(exchange_name, routing_key: routing_key)
+						q.bind(exchange_name)
 					rescue Bunny::NotFound => ex
 						logger.error { "bind failed: #{ex.message}" }
 						sleep 5
 						return bind_queue(
 						       queue_name:    queue_name,
 						       exchange_list: exchange_list,
-						       concurrency:   concurrency,
-						       routing_key:   routing_key,
+						       concurrency:   concurrency
 						      )
 					end
 				end
